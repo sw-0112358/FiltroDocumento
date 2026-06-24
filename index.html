@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Filtro Documento</title>
+<style>
+  :root {
+    --bg: #1a1a1f;
+    --panel: #23232b;
+    --border: #35353f;
+    --accent: #7c8cff;
+    --accent2: #b5bfff;
+    --text: #e8e8f0;
+    --muted: #7a7a8c;
+    --slider-track: #35353f;
+    --slider-thumb: #7c8cff;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--panel);
+  }
+
+  header h1 {
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text);
+  }
+
+  header span {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-left: 2px;
+  }
+
+  .icon-doc {
+    width: 28px; height: 28px;
+    background: var(--accent);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .icon-doc svg { width: 16px; height: 16px; fill: #fff; }
+
+  /* LAYOUT */
+  .workspace {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* PANEL LATERAL */
+  .sidebar {
+    width: 290px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .sidebar-section {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-section h2 {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  /* UPLOAD ZONE */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 24px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(124,140,255,0.05);
+  }
+
+  .drop-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  }
+
+  .drop-zone .dz-icon {
+    font-size: 2rem;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .drop-zone p {
+    font-size: 0.8rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .drop-zone p strong {
+    color: var(--accent2);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.85rem;
+  }
+
+  /* SLIDERS */
+  .slider-group {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .slider-item label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.82rem;
+    color: var(--text);
+    margin-bottom: 7px;
+  }
+
+  .slider-item label .val {
+    font-size: 0.78rem;
+    color: var(--accent2);
+    font-variant-numeric: tabular-nums;
+    min-width: 36px;
+    text-align: right;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--slider-track);
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--slider-thumb);
+    box-shadow: 0 0 0 3px rgba(124,140,255,0.2);
+    transition: box-shadow 0.15s;
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 0 5px rgba(124,140,255,0.3);
+  }
+
+  input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--slider-thumb);
+    border: none;
+    cursor: pointer;
+  }
+
+  /* PRESET BUTTONS */
+  .preset-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .btn-preset {
+    flex: 1;
+    min-width: 70px;
+    padding: 7px 8px;
+    font-size: 0.75rem;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    text-align: center;
+  }
+
+  .btn-preset:hover {
+    background: rgba(124,140,255,0.1);
+    border-color: var(--accent);
+    color: var(--accent2);
+  }
+
+  .btn-preset.active {
+    background: rgba(124,140,255,0.18);
+    border-color: var(--accent);
+    color: var(--accent2);
+  }
+
+  /* ACTION BUTTONS */
+  .btn-primary {
+    width: 100%;
+    padding: 10px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    margin-bottom: 8px;
+  }
+
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .btn-secondary {
+    width: 100%;
+    padding: 9px;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .btn-secondary:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+  .btn-secondary:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* CHECKBOX ROW */
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 0.82rem;
+    color: var(--text);
+    cursor: pointer;
+    margin-bottom: 10px;
+    user-select: none;
+  }
+
+  .check-row input[type=checkbox] {
+    accent-color: var(--accent);
+    width: 15px; height: 15px;
+    cursor: pointer;
+  }
+
+  /* CANVAS / PREVIEW AREA */
+  .preview-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #111115;
+  }
+
+  .preview-toolbar {
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--panel);
+  }
+
+  .tab-btn {
+    padding: 5px 14px;
+    font-size: 0.8rem;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .tab-btn.active {
+    background: rgba(124,140,255,0.15);
+    border-color: var(--accent);
+    color: var(--accent2);
+  }
+
+  .preview-info {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .canvas-wrapper {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px;
+    gap: 24px;
+  }
+
+  .canvas-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .canvas-label {
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  canvas {
+    border-radius: 4px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    max-width: 100%;
+  }
+
+  #canvasOriginal { display: none; }
+
+  /* EMPTY STATE */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    color: var(--muted);
+  }
+
+  .empty-state .big-icon { font-size: 3.5rem; opacity: 0.4; }
+  .empty-state p { font-size: 0.88rem; }
+
+  /* FORMATO DE DESCARGA */
+  .fmt-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .fmt-btn {
+    flex: 1;
+    padding: 6px;
+    font-size: 0.75rem;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .fmt-btn.active {
+    border-color: var(--accent);
+    color: var(--accent2);
+    background: rgba(124,140,255,0.1);
+  }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 700px) {
+    .workspace { flex-direction: column; }
+    .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+    .canvas-wrapper { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="icon-doc">
+    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/></svg>
+  </div>
+  <h1>Filtro Documento <span>— realce de escaneos</span></h1>
+</header>
+
+<div class="workspace">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <!-- UPLOAD -->
+    <div class="sidebar-section">
+      <h2>Imagen</h2>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept="image/*">
+        <span class="dz-icon">🖼️</span>
+        <p><strong>Subir imagen</strong>JPG, PNG, WEBP<br>O arrastra aquí</p>
+      </div>
+    </div>
+
+    <!-- PRESETS -->
+    <div class="sidebar-section">
+      <h2>Presets</h2>
+      <div class="preset-row">
+        <button class="btn-preset active" data-preset="documento">Documento</button>
+        <button class="btn-preset" data-preset="fotocopia">Fotocopia</button>
+        <button class="btn-preset" data-preset="suave">Suave</button>
+        <button class="btn-preset" data-preset="original">Original</button>
+      </div>
+    </div>
+
+    <!-- SLIDERS -->
+    <div class="sidebar-section">
+      <h2>Ajustes</h2>
+      <div class="slider-group">
+
+        <div class="slider-item">
+          <label>Contraste <span class="val" id="valContraste">160%</span></label>
+          <input type="range" id="sContraste" min="50" max="300" value="160">
+        </div>
+
+        <div class="slider-item">
+          <label>Brillo <span class="val" id="valBrillo">90%</span></label>
+          <input type="range" id="sBrillo" min="20" max="200" value="90">
+        </div>
+
+        <div class="slider-item">
+          <label>Saturación <span class="val" id="valSaturacion">40%</span></label>
+          <input type="range" id="sSaturacion" min="0" max="200" value="40">
+        </div>
+
+        <div class="slider-item">
+          <label>Sepia <span class="val" id="valSepia">15%</span></label>
+          <input type="range" id="sSepia" min="0" max="100" value="15">
+        </div>
+
+        <div class="slider-item">
+          <label>Nitidez <span class="val" id="valSharp">0</span></label>
+          <input type="range" id="sSharp" min="0" max="5" step="0.5" value="0">
+        </div>
+
+        <div class="slider-item">
+          <label>Umbral B&N <span class="val" id="valThresh">OFF</span></label>
+          <input type="range" id="sThresh" min="0" max="255" value="0">
+        </div>
+
+        <div class="slider-item">
+          <label>Escala <span class="val" id="valEscala">100%</span></label>
+          <input type="range" id="sEscala" min="20" max="100" value="100">
+        </div>
+
+      </div>
+    </div>
+
+    <!-- OPCIONES -->
+    <div class="sidebar-section">
+      <h2>Opciones</h2>
+      <label class="check-row">
+        <input type="checkbox" id="chkGris"> Escala de grises
+      </label>
+      <label class="check-row">
+        <input type="checkbox" id="chkInvert"> Invertir colores
+      </label>
+    </div>
+
+    <!-- DESCARGAR -->
+    <div class="sidebar-section">
+      <h2>Exportar</h2>
+      <div class="fmt-row">
+        <button class="fmt-btn active" data-fmt="jpeg">JPEG</button>
+        <button class="fmt-btn" data-fmt="png">PNG</button>
+        <button class="fmt-btn" data-fmt="webp">WEBP</button>
+      </div>
+      <div class="slider-item" style="margin-bottom:12px">
+        <label>Calidad <span class="val" id="valCalidad">92%</span></label>
+        <input type="range" id="sCalidad" min="10" max="100" value="92">
+      </div>
+      <button class="btn-primary" id="btnDescargar" disabled>
+        ⬇ Descargar imagen
+      </button>
+      <button class="btn-secondary" id="btnReset" disabled>
+        Restablecer ajustes
+      </button>
+    </div>
+
+  </aside>
+
+  <!-- PREVIEW -->
+  <main class="preview-area">
+
+    <div class="preview-toolbar">
+      <button class="tab-btn active" data-tab="filtrada">Con filtro</button>
+      <button class="tab-btn" data-tab="comparar">Comparar</button>
+      <span class="preview-info" id="previewInfo"></span>
+    </div>
+
+    <div class="canvas-wrapper" id="canvasWrapper">
+      <div class="empty-state" id="emptyState">
+        <span class="big-icon">📄</span>
+        <p>Sube una imagen para comenzar</p>
+      </div>
+    </div>
+
+  </main>
+
+</div>
+
+<!-- CANVASES OCULTOS -->
+<canvas id="canvasOriginal"></canvas>
+
+<script>
+// ── Estado ─────────────────────────────────────────────────────────────────
+const state = {
+  imgOriginal: null,
+  tab: 'filtrada',
+  fmt: 'jpeg',
+  filters: {
+    contraste: 160, brillo: 90, saturacion: 40,
+    sepia: 15, sharp: 0, thresh: 0, escala: 100,
+    gris: false, invert: false, calidad: 92
+  }
+};
+
+const PRESETS = {
+  documento: { contraste:160, brillo:90, saturacion:40, sepia:15, sharp:0, thresh:0, escala:100, gris:false, invert:false },
+  fotocopia: { contraste:220, brillo:80, saturacion:0,  sepia:0,  sharp:2, thresh:128, escala:100, gris:true, invert:false },
+  suave:     { contraste:120, brillo:105,saturacion:70, sepia:5,  sharp:0, thresh:0, escala:100, gris:false, invert:false },
+  original:  { contraste:100, brillo:100,saturacion:100,sepia:0,  sharp:0, thresh:0, escala:100, gris:false, invert:false },
+};
+
+// ── DOM Refs ────────────────────────────────────────────────────────────────
+const fileInput    = document.getElementById('fileInput');
+const dropZone     = document.getElementById('dropZone');
+const canvasOrig   = document.getElementById('canvasOriginal');
+const canvasWrapper= document.getElementById('canvasWrapper');
+const emptyState   = document.getElementById('emptyState');
+const btnDescargar = document.getElementById('btnDescargar');
+const btnReset     = document.getElementById('btnReset');
+const previewInfo  = document.getElementById('previewInfo');
+
+// Sliders
+const sliders = {
+  contraste: document.getElementById('sContraste'),
+  brillo:    document.getElementById('sBrillo'),
+  saturacion:document.getElementById('sSaturacion'),
+  sepia:     document.getElementById('sSepia'),
+  sharp:     document.getElementById('sSharp'),
+  thresh:    document.getElementById('sThresh'),
+  escala:    document.getElementById('sEscala'),
+  calidad:   document.getElementById('sCalidad'),
+};
+const vals = {
+  contraste: document.getElementById('valContraste'),
+  brillo:    document.getElementById('valBrillo'),
+  saturacion:document.getElementById('valSaturacion'),
+  sepia:     document.getElementById('valSepia'),
+  sharp:     document.getElementById('valSharp'),
+  thresh:    document.getElementById('valThresh'),
+  escala:    document.getElementById('valEscala'),
+  calidad:   document.getElementById('valCalidad'),
+};
+const chkGris   = document.getElementById('chkGris');
+const chkInvert = document.getElementById('chkInvert');
+
+// ── Cargar imagen ───────────────────────────────────────────────────────────
+function loadImage(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      state.imgOriginal = img;
+      canvasOrig.width  = img.width;
+      canvasOrig.height = img.height;
+      const ctx = canvasOrig.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      previewInfo.textContent = `${img.width} × ${img.height} px`;
+      btnDescargar.disabled = false;
+      btnReset.disabled = false;
+      renderPreview();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+fileInput.addEventListener('change', () => loadImage(fileInput.files[0]));
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  loadImage(e.dataTransfer.files[0]);
+});
+
+// ── Renderizar ──────────────────────────────────────────────────────────────
+let rafPending = false;
+function scheduleRender() {
+  if (!rafPending) { rafPending = true; requestAnimationFrame(() => { rafPending = false; renderPreview(); }); }
+}
+
+function applyFiltersToCanvas(srcCanvas) {
+  const f = state.filters;
+  const scale = f.escala / 100;
+  const w = Math.round(srcCanvas.width  * scale);
+  const h = Math.round(srcCanvas.height * scale);
+
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const ctx = out.getContext('2d');
+
+  // Filtros CSS nativos
+  const cssParts = [
+    `contrast(${f.contraste}%)`,
+    `brightness(${f.brillo}%)`,
+    f.gris ? 'grayscale(100%)' : `saturate(${f.saturacion}%)`,
+    `sepia(${f.sepia}%)`,
+    f.invert ? 'invert(100%)' : '',
+  ].filter(Boolean).join(' ');
+
+  ctx.filter = cssParts;
+  ctx.drawImage(srcCanvas, 0, 0, w, h);
+  ctx.filter = 'none';
+
+  // Nitidez (convolución unsharp)
+  if (f.sharp > 0) applySharp(ctx, w, h, f.sharp);
+
+  // Umbral B&N
+  if (f.thresh > 0) applyThreshold(ctx, w, h, f.thresh);
+
+  return out;
+}
+
+function applySharp(ctx, w, h, amount) {
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const src = new Uint8ClampedArray(imageData.data);
+  const dst = imageData.data;
+  const k = amount * 0.3;
+  // Kernel laplaciano simple
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = (y * w + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        const lap = -src[i-w*4+c] - src[i-4+c] + 5*src[i+c] - src[i+4+c] - src[i+w*4+c];
+        dst[i+c] = Math.max(0, Math.min(255, src[i+c] + lap * k / 4));
+      }
+      dst[i+3] = src[i+3];
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function applyThreshold(ctx, w, h, thr) {
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const d = imageData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const lum = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+    const v = lum >= thr ? 255 : 0;
+    d[i] = d[i+1] = d[i+2] = v;
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function renderPreview() {
+  if (!state.imgOriginal) return;
+
+  // Limpiar wrapper (excepto emptyState)
+  while (canvasWrapper.firstChild) canvasWrapper.removeChild(canvasWrapper.firstChild);
+
+  const filtered = applyFiltersToCanvas(canvasOrig);
+
+  if (state.tab === 'filtrada') {
+    filtered.style.maxWidth = '100%';
+    filtered.style.maxHeight = 'calc(100vh - 120px)';
+    filtered.style.objectFit = 'contain';
+    canvasWrapper.appendChild(filtered);
+  } else {
+    // Comparar lado a lado
+    const wrapL = makeCanvasBox('Original', canvasOrig);
+    const wrapR = makeCanvasBox('Con filtro', filtered);
+    canvasWrapper.appendChild(wrapL);
+    canvasWrapper.appendChild(wrapR);
+  }
+}
+
+function makeCanvasBox(label, canvas) {
+  const wrap = document.createElement('div');
+  wrap.className = 'canvas-container';
+  const lbl = document.createElement('span');
+  lbl.className = 'canvas-label';
+  lbl.textContent = label;
+  const clone = document.createElement('canvas');
+  clone.width  = canvas.width;
+  clone.height = canvas.height;
+  clone.getContext('2d').drawImage(canvas, 0, 0);
+  clone.style.maxWidth = '44vw';
+  clone.style.maxHeight = 'calc(100vh - 140px)';
+  wrap.appendChild(lbl);
+  wrap.appendChild(clone);
+  return wrap;
+}
+
+// ── Sliders → estado ────────────────────────────────────────────────────────
+function syncSliders() {
+  const f = state.filters;
+  sliders.contraste.value  = f.contraste;
+  sliders.brillo.value     = f.brillo;
+  sliders.saturacion.value = f.saturacion;
+  sliders.sepia.value      = f.sepia;
+  sliders.sharp.value      = f.sharp;
+  sliders.thresh.value     = f.thresh;
+  sliders.escala.value     = f.escala;
+  sliders.calidad.value    = f.calidad;
+  chkGris.checked   = f.gris;
+  chkInvert.checked = f.invert;
+  updateLabels();
+}
+
+function updateLabels() {
+  const f = state.filters;
+  vals.contraste.textContent  = f.contraste + '%';
+  vals.brillo.textContent     = f.brillo + '%';
+  vals.saturacion.textContent = f.saturacion + '%';
+  vals.sepia.textContent      = f.sepia + '%';
+  vals.sharp.textContent      = f.sharp;
+  vals.thresh.textContent     = f.thresh > 0 ? f.thresh : 'OFF';
+  vals.escala.textContent     = f.escala + '%';
+  vals.calidad.textContent    = f.calidad + '%';
+}
+
+// Eventos sliders
+Object.entries(sliders).forEach(([key, el]) => {
+  el.addEventListener('input', () => {
+    state.filters[key] = parseFloat(el.value);
+    updateLabels();
+    deactivatePresets();
+    scheduleRender();
+  });
+});
+chkGris.addEventListener('change', () => { state.filters.gris = chkGris.checked; deactivatePresets(); scheduleRender(); });
+chkInvert.addEventListener('change', () => { state.filters.invert = chkInvert.checked; deactivatePresets(); scheduleRender(); });
+
+// ── Presets ─────────────────────────────────────────────────────────────────
+document.querySelectorAll('.btn-preset').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const p = PRESETS[btn.dataset.preset];
+    Object.assign(state.filters, p);
+    syncSliders();
+    scheduleRender();
+    document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+function deactivatePresets() {
+  document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+}
+
+// ── Tabs ────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderPreview();
+  });
+});
+
+// ── Formato descarga ────────────────────────────────────────────────────────
+document.querySelectorAll('.fmt-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.fmt = btn.dataset.fmt;
+    document.querySelectorAll('.fmt-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+// ── Descargar ───────────────────────────────────────────────────────────────
+btnDescargar.addEventListener('click', () => {
+  if (!state.imgOriginal) return;
+  const out = applyFiltersToCanvas(canvasOrig);
+  const mime = state.fmt === 'png' ? 'image/png' : state.fmt === 'webp' ? 'image/webp' : 'image/jpeg';
+  const q = state.filters.calidad / 100;
+  const url = out.toDataURL(mime, q);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `doc-filtrado.${state.fmt}`;
+  a.click();
+});
+
+// ── Reset ───────────────────────────────────────────────────────────────────
+btnReset.addEventListener('click', () => {
+  Object.assign(state.filters, PRESETS.documento, { calidad: 92 });
+  syncSliders();
+  scheduleRender();
+  document.querySelectorAll('.btn-preset').forEach(b => b.classList.toggle('active', b.dataset.preset === 'documento'));
+});
+
+// ── Init ────────────────────────────────────────────────────────────────────
+updateLabels();
+</script>
+</body>
+</html>
