@@ -229,6 +229,7 @@ input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;bac
     <div style="margin-top:10px">
       <label class="check-row"><input type="checkbox" id="chkGris"> Escala de grises</label>
       <label class="check-row"><input type="checkbox" id="chkInvert"> Invertir colores</label>
+      <label class="check-row"><input type="checkbox" id="chkAdaptativo"> Umbral adaptativo (fotocopia)</label>
     </div>
     <div class="panel-btn-row">
       <button class="pbtn pbtn-primary" onclick="guardarPresetActual()">💾 Guardar preset</button>
@@ -306,7 +307,7 @@ const FILTRO_KEY='filtro_documentos_presets';
 const FMT_KEY='filtro_documentos_fmt';
 const PRESETS_DEFAULT={
   documento:{contraste:160,brillo:90,saturacion:40,sepia:15,sharp:0,thresh:0,escala:100,gris:false,invert:false},
-  fotocopia:{contraste:220,brillo:80,saturacion:0,sepia:0,sharp:2,thresh:128,escala:100,gris:true,invert:false},
+  fotocopia:{contraste:180,brillo:105,saturacion:0,sepia:0,sharp:1,thresh:0,escala:100,gris:true,invert:false,adaptativo:true},
   suave:{contraste:120,brillo:105,saturacion:70,sepia:5,sharp:0,thresh:0,escala:100,gris:false,invert:false},
   original:{contraste:100,brillo:100,saturacion:100,sepia:0,sharp:0,thresh:0,escala:100,gris:false,invert:false},
 };
@@ -341,6 +342,7 @@ function syncSliders(){
   document.getElementById('sCalidad').value=filtros.calidad;
   document.getElementById('chkGris').checked=filtros.gris;
   document.getElementById('chkInvert').checked=filtros.invert;
+  document.getElementById('chkAdaptativo').checked=!!filtros.adaptativo;
   updateLabels();
 }
 ['sContraste','sBrillo','sSaturacion','sSepia','sSharp','sThresh','sEscala','sCalidad'].forEach(id=>{
@@ -353,6 +355,7 @@ function syncSliders(){
 });
 document.getElementById('chkGris').addEventListener('change',e=>{filtros.gris=e.target.checked;});
 document.getElementById('chkInvert').addEventListener('change',e=>{filtros.invert=e.target.checked;});
+document.getElementById('chkAdaptativo').addEventListener('change',e=>{filtros.adaptativo=e.target.checked;});
 document.querySelectorAll('.btn-preset').forEach(btn=>{
   btn.addEventListener('click',()=>{
     presetActivo=btn.dataset.preset;
@@ -428,7 +431,9 @@ function aplicarFiltroACanvas(src){
   const ctx=out.getContext('2d');
   const css=[`contrast(${f.contraste}%)`,`brightness(${f.brillo}%)`,f.gris?'grayscale(100%)':`saturate(${f.saturacion}%)`,`sepia(${f.sepia}%)`,f.invert?'invert(100%)':''].filter(Boolean).join(' ');
   ctx.filter=css;ctx.drawImage(src,0,0,w,h);ctx.filter='none';
-  if(f.sharp>0)applySharp(ctx,w,h,f.sharp);if(f.thresh>0)applyThreshold(ctx,w,h,f.thresh);
+  if(f.sharp>0)applySharp(ctx,w,h,f.sharp);
+  if(f.adaptativo)applyAdaptativeThreshold(ctx,w,h);
+  else if(f.thresh>0)applyThreshold(ctx,w,h,f.thresh);
   return out;
 }
 function applySharp(ctx,w,h,amount){
@@ -440,6 +445,51 @@ function applyThreshold(ctx,w,h,thr){
   const d=ctx.getImageData(0,0,w,h);
   for(let i=0;i<d.data.length;i+=4){const v=(0.299*d.data[i]+0.587*d.data[i+1]+0.114*d.data[i+2])>=thr?255:0;d.data[i]=d.data[i+1]=d.data[i+2]=v;}
   ctx.putImageData(d,0,0);
+}
+
+// Threshold adaptativo: compara cada pixel con la media local de su zona
+function applyAdaptativeThreshold(ctx,w,h){
+  const src=ctx.getImageData(0,0,w,h);
+  const out=ctx.createImageData(w,h);
+  const s=src.data, d=out.data;
+
+  // Tamaño de bloque local: ~1/20 de la imagen, mínimo 15px
+  const radio=Math.max(15,Math.round(Math.min(w,h)/20));
+
+  // Calcular tabla de suma acumulada (integral image) de luminancia
+  const lum=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++){
+    const p=i*4;
+    lum[i]=0.299*s[p]+0.587*s[p+1]+0.114*s[p+2];
+  }
+  const integral=new Float64Array((w+1)*(h+1));
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      integral[(y+1)*(w+1)+(x+1)]=
+        lum[y*w+x]
+        +integral[y*(w+1)+(x+1)]
+        +integral[(y+1)*(w+1)+x]
+        -integral[y*(w+1)+x];
+    }
+  }
+
+  const C=8; // constante de ajuste: pixel es negro si está C unidades bajo la media local
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const x1=Math.max(0,x-radio), y1=Math.max(0,y-radio);
+      const x2=Math.min(w-1,x+radio), y2=Math.min(h-1,y+radio);
+      const count=(x2-x1)*(y2-y1);
+      const sum=integral[(y2+1)*(w+1)+(x2+1)]
+               -integral[y1*(w+1)+(x2+1)]
+               -integral[(y2+1)*(w+1)+x1]
+               +integral[y1*(w+1)+x1];
+      const media=sum/count;
+      const v=lum[y*w+x]<media-C?0:255;
+      const i=(y*w+x)*4;
+      d[i]=d[i+1]=d[i+2]=v;d[i+3]=255;
+    }
+  }
+  ctx.putImageData(out,0,0);
 }
 function blobFromCanvas(canvas){
   const mime=fmtActivo==='png'?'image/png':fmtActivo==='webp'?'image/webp':'image/jpeg';
