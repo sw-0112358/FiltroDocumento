@@ -234,6 +234,7 @@ input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;bac
       <button class="btn-preset" data-preset="suave">🌤️ Suave</button>
       <button class="btn-preset" data-preset="original">🔲 Original</button>
       <button class="btn-preset btn-preset-magic" data-preset="magiaPro">✨ Magia Pro</button>
+      <button class="btn-preset btn-preset-magic" data-preset="magiaPro2">🎨 Magia Color</button>
     </div>
     <div id="magicBanner" style="display:none;margin:10px 0;padding:10px 12px;background:linear-gradient(135deg,rgba(124,58,237,0.1),rgba(168,85,247,0.08));border:1px solid rgba(124,58,237,0.3);border-radius:8px;font-size:0.75rem;color:#7c3aed;line-height:1.5;">✨ <strong>Magia Pro</strong>: blanqueo adaptivo de fondo. Los ajustes manuales están desactivados en este modo.</div>
     <div class="ps-title">Ajustes</div>
@@ -302,6 +303,7 @@ input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;bac
     <select class="vt-filtro-sel" id="selFiltroVisor">
       <option value="documento">📄 Documento</option>
       <option value="magiaPro">✨ Magia Pro</option>
+      <option value="magiaPro2">🎨 Magia Color</option>
       <option value="fotocopia">🖨️ Fotocopia</option>
       <option value="suave">🌤️ Suave</option>
       <option value="original">🔲 Original</option>
@@ -374,6 +376,7 @@ const PRESETS_DEFAULT={
   suave:{contraste:120,brillo:105,saturacion:70,sepia:5,sharp:0,thresh:0,escala:100,gris:false,invert:false},
   original:{contraste:100,brillo:100,saturacion:100,sepia:0,sharp:0,thresh:0,escala:100,gris:false,invert:false},
   magiaPro:{contraste:100,brillo:100,saturacion:0,sepia:0,sharp:0,thresh:0,escala:100,gris:false,invert:false,_magic:true},
+  magiaPro2:{contraste:100,brillo:100,saturacion:0,sepia:0,sharp:0,thresh:0,escala:100,gris:false,invert:false,_magic:true,_magicColor:true},
 };
 function cargarPresets(){
   try{const s=localStorage.getItem(FILTRO_KEY);if(s){const p=JSON.parse(s);const b=JSON.parse(JSON.stringify(PRESETS_DEFAULT));Object.keys(b).forEach(k=>{if(p[k])Object.assign(b[k],p[k]);});return b;}}catch(e){}
@@ -500,7 +503,7 @@ function aplicarFiltroACanvas(src,f=null){
   f=f||filtros;const s=f.escala/100,w=Math.round(src.width*s),h=Math.round(src.height*s);
   const out=document.createElement('canvas');out.width=w;out.height=h;
   const ctx=out.getContext('2d');
-  if(f._magic){ctx.drawImage(src,0,0,w,h);applyMagicPro(ctx,w,h);return out;}
+  if(f._magic){ctx.drawImage(src,0,0,w,h);applyMagicPro(ctx,w,h,f._magicColor||false);return out;}
   const css=[`contrast(${f.contraste}%)`,`brightness(${f.brillo}%)`,f.gris?'grayscale(100%)':`saturate(${f.saturacion}%)`,`sepia(${f.sepia}%)`,f.invert?'invert(100%)':''].filter(Boolean).join(' ');
   ctx.filter=css;ctx.drawImage(src,0,0,w,h);ctx.filter='none';
   if(f.sharp>0)applySharp(ctx,w,h,f.sharp);if(f.thresh>0)applyThreshold(ctx,w,h,f.thresh);
@@ -517,7 +520,7 @@ function applyThreshold(ctx,w,h,thr){
   ctx.putImageData(d,0,0);
 }
 
-function applyMagicPro(ctx,w,h){
+function applyMagicPro(ctx,w,h,color=false){
   const imgData=ctx.getImageData(0,0,w,h);
   const src=imgData.data;const n=w*h;
   const gray=new Float32Array(n);
@@ -529,15 +532,24 @@ function applyMagicPro(ctx,w,h){
   const sorted=norm.slice().sort((a,b)=>a-b);
   const p2=sorted[Math.floor(n*0.02)],p98=sorted[Math.floor(n*0.98)],range=p98-p2||1;
   for(let i=0;i<n;i++){norm[i]=Math.max(0,Math.min(255,(norm[i]-p2)/range*255));}
-  const out=new Uint8ClampedArray(n);
-  for(let i=0;i<n;i++){
-    const v=norm[i];
-    if(v>130)out[i]=Math.min(255,v*1.25-32)|0;
-    else if(v<70)out[i]=Math.max(0,v*0.65)|0;
-    else out[i]=Math.max(0,v*0.85-8)|0;
-  }
   const result=new Uint8ClampedArray(src.length);
-  for(let i=0;i<n;i++){const p=i*4;result[p]=result[p+1]=result[p+2]=out[i];result[p+3]=255;}
+  for(let i=0;i<n;i++){
+    const v=norm[i],p=i*4;
+    if(color){
+      // Magia Color: preservar canales RGB
+      const factor=v>130?(Math.min(255,v*1.25-32))/Math.max(gray[i],1):
+                   v<70 ?(Math.max(0,v*0.65))      /Math.max(gray[i],1):
+                          (Math.max(0,v*0.85-8))    /Math.max(gray[i],1);
+      result[p]  =Math.max(0,Math.min(255,src[p]  *factor))|0;
+      result[p+1]=Math.max(0,Math.min(255,src[p+1]*factor))|0;
+      result[p+2]=Math.max(0,Math.min(255,src[p+2]*factor))|0;
+    } else {
+      // Magia Pro: escala de grises
+      const g=v>130?Math.min(255,v*1.25-32)|0:v<70?Math.max(0,v*0.65)|0:Math.max(0,v*0.85-8)|0;
+      result[p]=result[p+1]=result[p+2]=g;
+    }
+    result[p+3]=255;
+  }
   imgData.data.set(result);ctx.putImageData(imgData,0,0);
   applySharp(ctx,w,h,3.5);
 }
@@ -1677,7 +1689,7 @@ function applySharpPixels(data,w,h,amount){
   var src=new Uint8ClampedArray(data),k=amount*0.3;
   for(var y=1;y<h-1;y++)for(var x=1;x<w-1;x++){var i=(y*w+x)*4;for(var c=0;c<3;c++){var l=-src[i-w*4+c]-src[i-4+c]+5*src[i+c]-src[i+4+c]-src[i+w*4+c];data[i+c]=Math.max(0,Math.min(255,src[i+c]+l*k/4));}data[i+3]=src[i+3];}
 }
-function applyMagicProPixels(pixels,w,h){
+function applyMagicProPixels(pixels,w,h,color){
   var n=w*h,gray=new Float32Array(n);
   for(var i=0;i<n;i++){var p=i*4;gray[i]=0.299*pixels[p]+0.587*pixels[p+1]+0.114*pixels[p+2];}
   var r=Math.max(20,Math.min(80,Math.round(Math.min(w,h)*0.035)));
@@ -1688,7 +1700,19 @@ function applyMagicProPixels(pixels,w,h){
   var p2=sorted[Math.floor(n*0.02)],p98=sorted[Math.floor(n*0.98)],range=p98-p2||1;
   for(var i=0;i<n;i++)norm[i]=Math.max(0,Math.min(255,(norm[i]-p2)/range*255));
   var out=new Uint8ClampedArray(pixels.length);
-  for(var i=0;i<n;i++){var v=norm[i],g=v>130?Math.min(255,v*1.25-32)|0:v<70?Math.max(0,v*0.65)|0:Math.max(0,v*0.85-8)|0;var p=i*4;out[p]=out[p+1]=out[p+2]=g;out[p+3]=255;}
+  for(var i=0;i<n;i++){
+    var v=norm[i],p=i*4;
+    if(color){
+      var f=v>130?(Math.min(255,v*1.25-32))/Math.max(gray[i],1):v<70?(Math.max(0,v*0.65))/Math.max(gray[i],1):(Math.max(0,v*0.85-8))/Math.max(gray[i],1);
+      out[p]  =Math.max(0,Math.min(255,pixels[p]  *f))|0;
+      out[p+1]=Math.max(0,Math.min(255,pixels[p+1]*f))|0;
+      out[p+2]=Math.max(0,Math.min(255,pixels[p+2]*f))|0;
+    } else {
+      var g=v>130?Math.min(255,v*1.25-32)|0:v<70?Math.max(0,v*0.65)|0:Math.max(0,v*0.85-8)|0;
+      out[p]=out[p+1]=out[p+2]=g;
+    }
+    out[p+3]=255;
+  }
   applySharpPixels(out,w,h,3.5);
   return out;
 }
@@ -1713,7 +1737,7 @@ self.onmessage=function(e){
   for(var i=0;i<imagenes.length;i++){
     var im=imagenes[i];
     try{
-      var out=f._magic?applyMagicProPixels(im.pixels,im.w,im.h):applyCssFiltersPixels(im.pixels,im.w,im.h,f);
+      var out=f._magic?applyMagicProPixels(im.pixels,im.w,im.h,f._magicColor||false):applyCssFiltersPixels(im.pixels,im.w,im.h,f);
       resultados.push({nombre:im.nombre,w:im.w,h:im.h,pixels:out.buffer,ok:true});
     }catch(err){resultados.push({nombre:im.nombre,ok:false,error:err.message});}
     self.postMessage({type:'progress',idx:i,total:imagenes.length});
