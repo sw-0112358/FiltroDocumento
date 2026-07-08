@@ -313,8 +313,23 @@ input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;bac
 
 <!-- Borrado con zoom -->
 <div class="borra-overlay" id="borraOverlay">
-  <div class="borra-header">
+  <div class="borra-header" style="display:flex;align-items:center;gap:10px;justify-content:center;">
+    <select id="borraModoSel" class="vt-filtro-sel" onchange="_borraCambiarModo(this.value)">
+      <option value="borrar">⬜ Borrar zona</option>
+      <option value="escribir">✍️ Escribir</option>
+    </select>
     <span id="borraNombreLabel"></span>
+  </div>
+  <!-- Input flotante para texto -->
+  <div id="borraTextoPanel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:900;align-items:center;justify-content:center;flex-direction:column;gap:12px;">
+    <div style="background:#1e1e2e;border-radius:12px;padding:20px;width:88%;max-width:360px;display:flex;flex-direction:column;gap:12px;">
+      <div style="color:#fff;font-size:0.85rem;font-weight:600;">✍️ Escribe el texto</div>
+      <textarea id="borraTextoInput" rows="4" style="width:100%;padding:8px;border-radius:7px;border:1px solid #444;background:#111;color:#fff;font-family:Arial,sans-serif;font-size:0.9rem;resize:none;box-sizing:border-box;" placeholder="Escribe aquí…"></textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="vtbtn" onclick="_borraTextoCancel()">✕ Cancelar</button>
+        <button class="vtbtn vtbtn-accent" onclick="_borraTextoConfirmar()">✅ Insertar</button>
+      </div>
+    </div>
   </div>
   <div class="borra-wrap" id="borraWrap">
     <canvas id="borraCanvas"></canvas>
@@ -1297,6 +1312,13 @@ async function aplicarFiltroSeleccion(){
 
 /* ═══ BORRADO DE ZONA CON ZOOM ═══ */
 let _borraNombre=null,_borraZoomLevel=1,_borraImg=null;
+let _borraModo='borrar'; // 'borrar' | 'escribir'
+
+function _borraCambiarModo(modo){
+  _borraModo=modo;
+  _borraRect=null;
+  _borraRedibujar();
+}
 let _borraRect=null,_borraStartX=0,_borraStartY=0,_borraDrawing=false;
 let _borraMoving=false,_borraMoveOffX=0,_borraMoveOffY=0;
 let _borraHistorial=[]; // stack de ImageData para deshacer
@@ -1309,8 +1331,9 @@ async function abrirBorrado(){
   const blob=_visorBlobs[_borraNombre];
   _borraImg=await createImageBitmap(blob);
   _borraPanX=0;_borraPanY=0;
-  _borraHistorial=[];_borraRect=null;
-  document.getElementById('borraNombreLabel').textContent=`✏️ Borrar zona — ${_borraNombre.replace(/\.[^.]+$/,'')}`;
+  _borraHistorial=[];_borraRect=null;_borraModo='borrar';
+  document.getElementById('borraModoSel').value='borrar';
+  document.getElementById('borraNombreLabel').textContent=_borraNombre.replace(/\.[^.]+$/,'');
   const canvas=document.getElementById('borraCanvas');
   canvas.width=_borraImg.width;canvas.height=_borraImg.height;
   const ctx=canvas.getContext('2d');ctx.drawImage(_borraImg,0,0);
@@ -1456,19 +1479,25 @@ function _borraRedibujar(){
   // Restaurar último estado del historial sin quitarlo
   if(_borraHistorial.length)ctx.putImageData(_borraHistorial[_borraHistorial.length-1],0,0);
   if(!_borraRect||_borraRect.w<2||_borraRect.h<2)return;
-  // Dibujar rectángulo de previsualización
-  ctx.strokeStyle='#00e5ff';ctx.lineWidth=2/(_borraZoomLevel);
+  // Color según modo
+  const color=_borraModo==='escribir'?'#ff3b3b':'#00e5ff';
+  ctx.strokeStyle=color;ctx.lineWidth=2/(_borraZoomLevel);
   ctx.strokeRect(_borraRect.x,_borraRect.y,_borraRect.w,_borraRect.h);
-  ctx.fillStyle='rgba(255,255,255,0.35)';
+  ctx.fillStyle=_borraModo==='escribir'?'rgba(255,59,59,0.15)':'rgba(255,255,255,0.35)';
   ctx.fillRect(_borraRect.x,_borraRect.y,_borraRect.w,_borraRect.h);
 }
 
 async function confirmarBorrado(){
   if(!_borraRect||_borraRect.w<2||_borraRect.h<2){setStatus('❌ Dibuja un rectángulo primero');return;}
+  if(_borraModo==='escribir'){
+    // Mostrar panel de texto
+    document.getElementById('borraTextoInput').value='';
+    document.getElementById('borraTextoPanel').style.display='flex';
+    return;
+  }
+  // Modo borrar: rellenar de blanco
   const canvas=document.getElementById('borraCanvas');
   const ctx=canvas.getContext('2d');
-  // Rellenar de blanco definitivamente
-  // Restaurar estado limpio y aplicar solo el relleno blanco sin borde
   if(_borraHistorial.length)ctx.putImageData(_borraHistorial[_borraHistorial.length-1],0,0);
   ctx.fillStyle='#ffffff';
   ctx.fillRect(_borraRect.x,_borraRect.y,_borraRect.w,_borraRect.h);
@@ -1503,6 +1532,47 @@ function cerrarBorrado(){
   window.onmousemove=null;window.onmouseup=null;
   document.getElementById('borraOverlay').classList.remove('show');
   _borraNombre=null;_borraImg=null;_borraHistorial=[];
+}
+
+function _borraTextoCancel(){
+  document.getElementById('borraTextoPanel').style.display='none';
+}
+function _borraTextoConfirmar(){
+  const texto=document.getElementById('borraTextoInput').value.trim();
+  if(!texto){setStatus('❌ Escribe algo primero');return;}
+  document.getElementById('borraTextoPanel').style.display='none';
+  const canvas=document.getElementById('borraCanvas');
+  const ctx=canvas.getContext('2d');
+  // Restaurar estado limpio (sin borde rojo)
+  if(_borraHistorial.length)ctx.putImageData(_borraHistorial[_borraHistorial.length-1],0,0);
+  const r=_borraRect;
+  // Calcular font-size para que el texto quepa en el rectángulo
+  const lineas=texto.split('\n');
+  const maxChars=Math.max(...lineas.map(l=>l.length))||1;
+  // Ajuste horizontal y vertical
+  let fontSize=Math.min(
+    Math.floor(r.w/maxChars*1.6),   // ajuste por ancho
+    Math.floor(r.h/lineas.length*0.85) // ajuste por alto
+  );
+  fontSize=Math.max(8,Math.min(fontSize,r.h));
+  ctx.font=`${fontSize}px Arial`;
+  ctx.fillStyle='#000000';
+  ctx.textBaseline='top';
+  // Dibujar cada línea centrada verticalmente en el rect
+  const lineH=fontSize*1.15;
+  const totalH=lineH*lineas.length;
+  const startY=r.y+(r.h-totalH)/2;
+  lineas.forEach((linea,i)=>{
+    // Ajustar horizontalmente si sigue siendo muy ancho
+    let fs=fontSize;
+    while(ctx.measureText(linea).width>r.w&&fs>6){fs--;ctx.font=`${fs}px Arial`;}
+    ctx.fillText(linea,r.x,startY+i*lineH,r.w);
+    ctx.font=`${fontSize}px Arial`; // restaurar para siguiente línea
+  });
+  // Guardar estado con el texto aplicado
+  _borraHistorial.push(ctx.getImageData(0,0,canvas.width,canvas.height));
+  _borraRect=null;
+  setStatus('✅ Texto insertado — puedes seguir editando');
 }
 
 function _marcarDirty(){
