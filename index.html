@@ -100,6 +100,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .btn-preset{padding:7px 6px;font-size:0.75rem;font-weight:500;border:1.5px solid var(--border2);background:var(--panel2);color:var(--muted);border-radius:7px;cursor:pointer;transition:all 0.15s;text-align:center;}
 .btn-preset:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-lt);}
 .btn-preset.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+.btn-preset-magic{border-color:#7c3aed;color:#7c3aed;}
+.btn-preset-magic:hover{border-color:#7c3aed;color:#7c3aed;background:rgba(124,58,237,0.08);}
+.btn-preset-magic.active{background:linear-gradient(135deg,#7c3aed,#a855f7);border-color:#7c3aed;color:#fff;}
 .slider-group{display:flex;flex-direction:column;gap:11px;}
 .slider-item label{display:flex;justify-content:space-between;font-size:0.78rem;color:var(--muted);font-weight:500;margin-bottom:5px;}
 .slider-item label .val{color:var(--accent);font-weight:600;font-variant-numeric:tabular-nums;}
@@ -156,6 +159,11 @@ input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;bac
 .img-check:hover{transform:scale(1.15);background:rgba(0,0,0,0.65);}
 .img-wrap.selected .img-check{background:var(--accent);border-color:var(--accent);}
 .img-wrap.selected .img-check::after{content:'✓';font-weight:700;}
+.img-rotate-btn{position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,0.45);border:1.5px solid rgba(255,255,255,0.5);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;transition:background 0.15s,transform 0.1s;}
+.img-rotate-btn:hover{background:rgba(0,0,0,0.75);transform:scale(1.15);}
+.img-num{position:absolute;bottom:5px;left:7px;background:rgba(0,0,0,0.55);color:#fff;font-size:0.65rem;font-weight:600;padding:2px 6px;border-radius:10px;z-index:2;pointer-events:none;}
+.img-wrap.dragging{opacity:0.35;transform:scale(0.95);}
+.img-wrap.drag-over img{outline:3px dashed #fff;outline-offset:3px;}
 
 .visor-toolbar{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(8px);padding:10px 16px;display:flex;align-items:center;gap:8px;border-top:1px solid rgba(255,255,255,0.1);transform:translateY(100%);transition:transform 0.22s ease;flex-wrap:wrap;}
 .visor-toolbar.show{transform:translateY(0);}
@@ -165,12 +173,15 @@ input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;bac
 .vtbtn.vtbtn-accent:hover{background:var(--accent2);}
 .vtbtn.vtbtn-warn{background:rgba(230,126,34,0.85);border-color:transparent;}
 .vtbtn.vtbtn-warn:hover{background:rgba(230,126,34,1);}
+.vt-filtro-sel{padding:7px 10px;border-radius:7px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.12);color:#fff;font-size:0.78rem;font-weight:500;cursor:pointer;outline:none;}
+.vt-filtro-sel option{background:#1e1e2e;color:#fff;}
 .vt-sel-count{font-size:0.75rem;color:rgba(255,255,255,0.7);margin-right:auto;}
 
 /* Crop manual */
 .crop-overlay{display:none;position:fixed;inset:0;background:#000;z-index:700;flex-direction:column;}
 .crop-overlay.show{display:flex;}
-.crop-header{display:flex;align-items:center;padding:10px 12px;background:rgba(0,0,0,0.75);flex-shrink:0;gap:8px;}
+
+
 .crop-wrap{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;background:#111;touch-action:none;}
 #cropCanvas{display:block;max-width:100%;max-height:calc(100vh - 110px);touch-action:none;cursor:crosshair;}
 .crop-acciones{display:flex;gap:8px;padding:10px 12px;background:rgba(0,0,0,0.75);flex-shrink:0;justify-content:center;flex-wrap:wrap;}
@@ -215,9 +226,11 @@ input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;bac
       <button class="btn-preset" data-preset="fotocopia">🖨️ Fotocopia</button>
       <button class="btn-preset" data-preset="suave">🌤️ Suave</button>
       <button class="btn-preset" data-preset="original">🔲 Original</button>
+      <button class="btn-preset btn-preset-magic" data-preset="magiaPro">✨ Magia Pro</button>
     </div>
+    <div id="magicBanner" style="display:none;margin:10px 0;padding:10px 12px;background:linear-gradient(135deg,rgba(124,58,237,0.1),rgba(168,85,247,0.08));border:1px solid rgba(124,58,237,0.3);border-radius:8px;font-size:0.75rem;color:#7c3aed;line-height:1.5;">✨ <strong>Magia Pro</strong>: blanqueo adaptivo de fondo. Los ajustes manuales están desactivados en este modo.</div>
     <div class="ps-title">Ajustes</div>
-    <div class="slider-group">
+    <div class="slider-group" id="sliderGroup">
       <div class="slider-item"><label>Contraste <span class="val" id="valContraste">160%</span></label><input type="range" id="sContraste" min="50" max="300" value="160"></div>
       <div class="slider-item"><label>Brillo <span class="val" id="valBrillo">90%</span></label><input type="range" id="sBrillo" min="20" max="200" value="90"></div>
       <div class="slider-item"><label>Saturación <span class="val" id="valSaturacion">40%</span></label><input type="range" id="sSaturacion" min="0" max="200" value="40"></div>
@@ -229,7 +242,6 @@ input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;bac
     <div style="margin-top:10px">
       <label class="check-row"><input type="checkbox" id="chkGris"> Escala de grises</label>
       <label class="check-row"><input type="checkbox" id="chkInvert"> Invertir colores</label>
-      <label class="check-row"><input type="checkbox" id="chkAdaptativo"> Umbral adaptativo (fotocopia)</label>
     </div>
     <div class="panel-btn-row">
       <button class="pbtn pbtn-primary" onclick="guardarPresetActual()">💾 Guardar preset</button>
@@ -274,26 +286,37 @@ input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;bac
   <div class="visor-toolbar" id="visorToolbar">
     <span class="vt-sel-count" id="vtSelCount">0 seleccionadas</span>
     <button class="vtbtn vtbtn-accent" onclick="autoCropSeleccion()">✂️ Auto-recortar</button>
-    <button class="vtbtn vtbtn-warn"   onclick="rotarSeleccion(90)">↻ Rotar 90°</button>
-    <button class="vtbtn"              onclick="rotarSeleccion(-90)">↺ -90°</button>
+    <button class="vtbtn vtbtn-accent" id="btnGuardarCambios" onclick="guardarCambiosVisor()" style="display:none;background:#27ae60">💾 Guardar cambios</button>
+    <button class="vtbtn" onclick="recortarSeleccion()">📐 Recortar</button>
+    <button class="vtbtn" onclick="rotarSeleccion(-90)">↺ Rotar izq</button>
+    <button class="vtbtn" onclick="rotarSeleccion(90)">↻ Rotar der</button>
+    <button class="vtbtn" onclick="moverSeleccion(-1)">⬆ Subir</button>
+    <button class="vtbtn" onclick="moverSeleccion(1)">⬇ Bajar</button>
+    <select class="vt-filtro-sel" id="selFiltroVisor">
+      <option value="documento">📄 Documento</option>
+      <option value="magiaPro">✨ Magia Pro</option>
+      <option value="fotocopia">🖨️ Fotocopia</option>
+      <option value="suave">🌤️ Suave</option>
+      <option value="original">🔲 Original</option>
+    </select>
+    <button class="vtbtn vtbtn-accent" onclick="aplicarFiltroSeleccion()">⚡ Aplicar filtro</button>
   </div>
 </div>
 
 <!-- Crop manual -->
 <div class="crop-overlay" id="cropOverlay">
-  <div class="crop-header">
-    <button class="vtbtn" onclick="_navegarCrop(-1)">◀</button>
-    <span id="cropNombreLabel" style="flex:1;text-align:center;color:#fff;font-size:0.8rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 6px"></span>
-    <button class="vtbtn" onclick="_navegarCrop(1)">▶</button>
+  <div style="padding:8px 12px;background:rgba(0,0,0,0.75);flex-shrink:0;text-align:center;">
+    <span id="cropNombreLabel" style="color:#fff;font-size:0.78rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;"></span>
   </div>
   <div class="crop-wrap" id="cropWrap">
     <canvas id="cropCanvas"></canvas>
   </div>
   <div class="crop-acciones">
-    <button class="vtbtn vtbtn-accent" onclick="aplicarCropAlBuffer()">📌 Aplicar</button>
-    <button class="vtbtn vtbtn-warn"   onclick="resetCropEsquinas()">↺ Reiniciar</button>
-    <button class="vtbtn" style="background:rgba(39,174,96,0.8);border-color:rgba(39,174,96,0.5)" onclick="guardarBufferYCerrar()">💾 Guardar todo</button>
-    <button class="vtbtn"              onclick="descartarBufferYCerrar()">✕ Cerrar</button>
+    <button class="vtbtn" onclick="_navegarCrop(-1)">◀</button>
+    <button class="vtbtn vtbtn-accent" onclick="confirmarCropManual()">✅ Aplicar</button>
+    <button class="vtbtn vtbtn-warn" onclick="resetCropEsquinas()">↺ Reiniciar</button>
+    <button class="vtbtn" onclick="cerrarCropManual()">✕ Cerrar</button>
+    <button class="vtbtn" onclick="_navegarCrop(1)">▶</button>
   </div>
 </div>
 
@@ -307,9 +330,10 @@ const FILTRO_KEY='filtro_documentos_presets';
 const FMT_KEY='filtro_documentos_fmt';
 const PRESETS_DEFAULT={
   documento:{contraste:160,brillo:90,saturacion:40,sepia:15,sharp:0,thresh:0,escala:100,gris:false,invert:false},
-  fotocopia:{contraste:180,brillo:105,saturacion:0,sepia:0,sharp:1,thresh:0,escala:100,gris:true,invert:false,adaptativo:true},
+  fotocopia:{contraste:220,brillo:80,saturacion:0,sepia:0,sharp:2,thresh:128,escala:100,gris:true,invert:false},
   suave:{contraste:120,brillo:105,saturacion:70,sepia:5,sharp:0,thresh:0,escala:100,gris:false,invert:false},
   original:{contraste:100,brillo:100,saturacion:100,sepia:0,sharp:0,thresh:0,escala:100,gris:false,invert:false},
+  magiaPro:{contraste:100,brillo:100,saturacion:0,sepia:0,sharp:0,thresh:0,escala:100,gris:false,invert:false,_magic:true},
 };
 function cargarPresets(){
   try{const s=localStorage.getItem(FILTRO_KEY);if(s){const p=JSON.parse(s);const b=JSON.parse(JSON.stringify(PRESETS_DEFAULT));Object.keys(b).forEach(k=>{if(p[k])Object.assign(b[k],p[k]);});return b;}}catch(e){}
@@ -342,7 +366,6 @@ function syncSliders(){
   document.getElementById('sCalidad').value=filtros.calidad;
   document.getElementById('chkGris').checked=filtros.gris;
   document.getElementById('chkInvert').checked=filtros.invert;
-  document.getElementById('chkAdaptativo').checked=!!filtros.adaptativo;
   updateLabels();
 }
 ['sContraste','sBrillo','sSaturacion','sSepia','sSharp','sThresh','sEscala','sCalidad'].forEach(id=>{
@@ -355,7 +378,13 @@ function syncSliders(){
 });
 document.getElementById('chkGris').addEventListener('change',e=>{filtros.gris=e.target.checked;});
 document.getElementById('chkInvert').addEventListener('change',e=>{filtros.invert=e.target.checked;});
-document.getElementById('chkAdaptativo').addEventListener('change',e=>{filtros.adaptativo=e.target.checked;});
+function toggleMagicUI(on){
+  const banner=document.getElementById('magicBanner');
+  const sg=document.getElementById('sliderGroup');
+  const checks=document.querySelectorAll('.check-row');
+  if(on){banner.style.display='block';sg.style.opacity='0.35';sg.style.pointerEvents='none';checks.forEach(c=>{c.style.opacity='0.35';c.style.pointerEvents='none';});}
+  else{banner.style.display='none';sg.style.opacity='';sg.style.pointerEvents='';checks.forEach(c=>{c.style.opacity='';c.style.pointerEvents='';});}
+}
 document.querySelectorAll('.btn-preset').forEach(btn=>{
   btn.addEventListener('click',()=>{
     presetActivo=btn.dataset.preset;
@@ -363,10 +392,12 @@ document.querySelectorAll('.btn-preset').forEach(btn=>{
     syncSliders();
     document.querySelectorAll('.btn-preset').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
+    toggleMagicUI(presetActivo==='magiaPro');
   });
 });
 function guardarPresetActual(){
   if(!presetActivo){setStatus('Selecciona un preset primero');return;}
+  if(presetActivo==='magiaPro'){setStatus('\u2728 Magia Pro no se puede modificar');return;}
   const{calidad,...s}=filtros;PRESETS[presetActivo]={...s};persistirPresets();
   const badge=document.getElementById('savedBadge');badge.style.opacity='1';setTimeout(()=>badge.style.opacity='0',1800);
 }
@@ -425,15 +456,14 @@ async function crearTarjetaDesdeImagenes(files,nombre){
 
 /* ═══ 6. PROCESAR ═══ */
 const canvasOff=document.getElementById('canvasOff');
-function aplicarFiltroACanvas(src){
-  const f=filtros,s=f.escala/100,w=Math.round(src.width*s),h=Math.round(src.height*s);
+function aplicarFiltroACanvas(src,f=null){
+  f=f||filtros;const s=f.escala/100,w=Math.round(src.width*s),h=Math.round(src.height*s);
   const out=document.createElement('canvas');out.width=w;out.height=h;
   const ctx=out.getContext('2d');
+  if(f._magic){ctx.drawImage(src,0,0,w,h);applyMagicPro(ctx,w,h);return out;}
   const css=[`contrast(${f.contraste}%)`,`brightness(${f.brillo}%)`,f.gris?'grayscale(100%)':`saturate(${f.saturacion}%)`,`sepia(${f.sepia}%)`,f.invert?'invert(100%)':''].filter(Boolean).join(' ');
   ctx.filter=css;ctx.drawImage(src,0,0,w,h);ctx.filter='none';
-  if(f.sharp>0)applySharp(ctx,w,h,f.sharp);
-  if(f.adaptativo)applyAdaptativeThreshold(ctx,w,h);
-  else if(f.thresh>0)applyThreshold(ctx,w,h,f.thresh);
+  if(f.sharp>0)applySharp(ctx,w,h,f.sharp);if(f.thresh>0)applyThreshold(ctx,w,h,f.thresh);
   return out;
 }
 function applySharp(ctx,w,h,amount){
@@ -447,49 +477,52 @@ function applyThreshold(ctx,w,h,thr){
   ctx.putImageData(d,0,0);
 }
 
-// Threshold adaptativo: compara cada pixel con la media local de su zona
-function applyAdaptativeThreshold(ctx,w,h){
-  const src=ctx.getImageData(0,0,w,h);
-  const out=ctx.createImageData(w,h);
-  const s=src.data, d=out.data;
-
-  // Tamaño de bloque local: ~1/20 de la imagen, mínimo 15px
-  const radio=Math.max(15,Math.round(Math.min(w,h)/20));
-
-  // Calcular tabla de suma acumulada (integral image) de luminancia
-  const lum=new Float32Array(w*h);
-  for(let i=0;i<w*h;i++){
-    const p=i*4;
-    lum[i]=0.299*s[p]+0.587*s[p+1]+0.114*s[p+2];
+function applyMagicPro(ctx,w,h){
+  const imgData=ctx.getImageData(0,0,w,h);
+  const src=imgData.data;const n=w*h;
+  const gray=new Float32Array(n);
+  for(let i=0;i<n;i++){const p=i*4;gray[i]=0.299*src[p]+0.587*src[p+1]+0.114*src[p+2];}
+  const r=Math.max(20,Math.min(80,Math.round(Math.min(w,h)*0.035)));
+  const bg=boxBlurGray(gray,w,h,r);
+  const norm=new Float32Array(n);
+  for(let i=0;i<n;i++){norm[i]=Math.min(255,(gray[i]/(bg[i]+1))*230);}
+  const sorted=norm.slice().sort((a,b)=>a-b);
+  const p2=sorted[Math.floor(n*0.02)],p98=sorted[Math.floor(n*0.98)],range=p98-p2||1;
+  for(let i=0;i<n;i++){norm[i]=Math.max(0,Math.min(255,(norm[i]-p2)/range*255));}
+  const out=new Uint8ClampedArray(n);
+  for(let i=0;i<n;i++){
+    const v=norm[i];
+    if(v>130)out[i]=Math.min(255,v*1.25-32)|0;
+    else if(v<70)out[i]=Math.max(0,v*0.65)|0;
+    else out[i]=Math.max(0,v*0.85-8)|0;
   }
-  const integral=new Float64Array((w+1)*(h+1));
+  const result=new Uint8ClampedArray(src.length);
+  for(let i=0;i<n;i++){const p=i*4;result[p]=result[p+1]=result[p+2]=out[i];result[p+3]=255;}
+  imgData.data.set(result);ctx.putImageData(imgData,0,0);
+  applySharp(ctx,w,h,3.5);
+}
+function boxBlurGray(gray,w,h,r){
+  const tmp=new Float32Array(gray.length),out=new Float32Array(gray.length);
   for(let y=0;y<h;y++){
-    for(let x=0;x<w;x++){
-      integral[(y+1)*(w+1)+(x+1)]=
-        lum[y*w+x]
-        +integral[y*(w+1)+(x+1)]
-        +integral[(y+1)*(w+1)+x]
-        -integral[y*(w+1)+x];
+    let sum=0;const row=y*w;
+    for(let x=0;x<2*r+1&&x<w;x++)sum+=gray[row+x];
+    let cnt=Math.min(2*r+1,w);tmp[row+r]=sum/cnt;
+    for(let x=1;x<w;x++){
+      if(x+r<w){sum+=gray[row+x+r];cnt++;}
+      if(x-r-1>=0){sum-=gray[row+x-r-1];cnt--;}
+      tmp[row+x]=sum/cnt;
     }
   }
-
-  const C=8; // constante de ajuste: pixel es negro si está C unidades bajo la media local
-  for(let y=0;y<h;y++){
-    for(let x=0;x<w;x++){
-      const x1=Math.max(0,x-radio), y1=Math.max(0,y-radio);
-      const x2=Math.min(w-1,x+radio), y2=Math.min(h-1,y+radio);
-      const count=(x2-x1)*(y2-y1);
-      const sum=integral[(y2+1)*(w+1)+(x2+1)]
-               -integral[y1*(w+1)+(x2+1)]
-               -integral[(y2+1)*(w+1)+x1]
-               +integral[y1*(w+1)+x1];
-      const media=sum/count;
-      const v=lum[y*w+x]<media-C?0:255;
-      const i=(y*w+x)*4;
-      d[i]=d[i+1]=d[i+2]=v;d[i+3]=255;
+  for(let x=0;x<w;x++){
+    let sum=0,cnt=0;
+    for(let y=0;y<r&&y<h;y++){sum+=tmp[y*w+x];cnt++;}
+    for(let y=0;y<h;y++){
+      if(y+r<h){sum+=tmp[(y+r)*w+x];cnt++;}
+      if(y-r-1>=0){sum-=tmp[(y-r-1)*w+x];cnt--;}
+      out[y*w+x]=sum/cnt;
     }
   }
-  ctx.putImageData(out,0,0);
+  return out;
 }
 function blobFromCanvas(canvas){
   const mime=fmtActivo==='png'?'image/png':fmtActivo==='webp'?'image/webp':'image/jpeg';
@@ -498,22 +531,80 @@ function blobFromCanvas(canvas){
   return new Blob([bytes],{type:mime});
 }
 async function procesarTarjeta(id){
-  const t=await dbObtener(id);if(!t?.zipOriginalBlob){setStatus('❌ Sin ZIP original');return;}
-  setStatus('⚙️ Procesando…');setProgress(0);
-  const zipIn=await JSZip.loadAsync(t.zipOriginalBlob);const zipOut=new JSZip();
-  const nombres=Object.keys(zipIn.files).filter(n=>!zipIn.files[n].dir).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+  const t=await dbObtener(id);if(!t?.zipOriginalBlob&&!t?.zipFiltradoBlob){setStatus('\u274C Sin ZIP original');return;}
+  setStatus('\u2699\uFE0F Procesando\u2026');setProgress(0);
+
+  // Fase 1 (0-30%): leer ZIP y decodificar imágenes en canvas del DOM
+  // Usar zipFiltradoBlob si existe (tiene recortes/rotaciones ya aplicados)
+  const zipIn=await JSZip.loadAsync(t.zipFiltradoBlob||t.zipOriginalBlob);
+  const nombres=Object.keys(zipIn.files)
+    .filter(n=>!zipIn.files[n].dir&&/\.(jpe?g|png|webp|gif|bmp)$/i.test(n))
+    .sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+
+  const imagenes=[];
   for(let i=0;i<nombres.length;i++){
-    const nombre=nombres[i];const blob=await zipIn.files[nombre].async('blob');
-    if(!blob.type.startsWith('image/')&&!/\.(jpe?g|png|webp|gif|bmp)$/i.test(nombre))continue;
+    const nombre=nombres[i];
+    const blob=await zipIn.files[nombre].async('blob');
     const url=URL.createObjectURL(blob);
-    await new Promise((res,rej)=>{const img=new Image();img.onload=()=>{canvasOff.width=img.naturalWidth;canvasOff.height=img.naturalHeight;canvasOff.getContext('2d').drawImage(img,0,0);URL.revokeObjectURL(url);res();};img.onerror=()=>{URL.revokeObjectURL(url);rej();};img.src=url;}).catch(()=>{});
-    const ext=fmtActivo==='png'?'png':fmtActivo==='webp'?'webp':'jpg';
-    zipOut.file(nombre.replace(/\.[^.]+$/,'')+'.'+ext,blobFromCanvas(aplicarFiltroACanvas(canvasOff)));
-    setProgress(Math.round((i+1)/nombres.length*100));setStatus(`⚙️ ${i+1}/${nombres.length} — ${nombre}`);
+    const imgData=await new Promise((res,rej)=>{
+      const img=new Image();
+      img.onload=()=>{
+        const s=filtros.escala/100;
+        const w=Math.round(img.naturalWidth*s),h=Math.round(img.naturalHeight*s);
+        canvasOff.width=w;canvasOff.height=h;
+        canvasOff.getContext('2d').drawImage(img,0,0,w,h);
+        URL.revokeObjectURL(url);
+        res({nombre,w,h,pixels:new Uint8ClampedArray(canvasOff.getContext('2d').getImageData(0,0,w,h).data)});
+      };
+      img.onerror=()=>{URL.revokeObjectURL(url);rej();};
+      img.src=url;
+    }).catch(()=>null);
+    if(imgData)imagenes.push(imgData);
+    setProgress(Math.round((i+1)/nombres.length*30));
+    setStatus('\u2699\uFE0F Leyendo '+( i+1)+'/'+nombres.length+'\u2026');
   }
-  t.zipFiltradoBlob=await zipOut.generateAsync({type:'blob'},m=>setProgress(Math.round(m.percent)));
-  t.presetUsado=presetActivo;t.nombreArchivoFilt=`filt_${uuid()}.zip`;
-  await dbGuardar(t);setStatus(`✅ Procesado "${t.nombre}"`);setProgress(100);renderGrid();
+
+  // Fase 2 (30-80%): Web Worker procesa los pixels sin bloquear la UI
+  const workerSrc=document.getElementById('worker-src').textContent;
+  const workerBlob=new Blob([workerSrc],{type:'application/javascript'});
+  const workerUrl=URL.createObjectURL(workerBlob);
+  const worker=new Worker(workerUrl);
+
+  await new Promise((resolve,reject)=>{
+    worker.onmessage=async function(e){
+      const msg=e.data;
+      if(msg.type==='progress'){
+        setProgress(30+Math.round((msg.idx+1)/msg.total*50));
+        setStatus('\u2699\uFE0F Filtrando '+(msg.idx+1)+'/'+msg.total+'\u2026');
+      }
+      if(msg.type==='done'){
+        worker.terminate();URL.revokeObjectURL(workerUrl);
+
+        // Fase 3 (80-100%): pixels → canvas → blob → ZIP
+        setStatus('\u2699\uFE0F Generando ZIP\u2026');
+        const zipOut=new JSZip();
+        const ext=fmtActivo==='png'?'png':fmtActivo==='webp'?'webp':'jpg';
+        const mime=fmtActivo==='png'?'image/png':fmtActivo==='webp'?'image/webp':'image/jpeg';
+        for(const r of msg.resultados){
+          if(!r.ok)continue;
+          canvasOff.width=r.w;canvasOff.height=r.h;
+          const ctx2=canvasOff.getContext('2d');
+          ctx2.putImageData(new ImageData(new Uint8ClampedArray(r.pixels),r.w,r.h),0,0);
+          const imgBlob=await new Promise(res=>canvasOff.toBlob(res,mime,filtros.calidad/100));
+          zipOut.file(r.nombre.replace(/\.[^.]+$/,'')+'.'+ext,imgBlob);
+        }
+        t.zipFiltradoBlob=await zipOut.generateAsync({type:'blob'},m=>setProgress(80+Math.round(m.percent*0.2)));
+        t.presetUsado=presetActivo;t.nombreArchivoFilt='filt_'+uuid()+'.zip';
+        await dbGuardar(t);setStatus('\u2705 Procesado "'+t.nombre+'"');setProgress(100);renderGrid();
+        resolve();
+      }
+    };
+    worker.onerror=function(err){
+      worker.terminate();URL.revokeObjectURL(workerUrl);
+      setStatus('\u274C Error: '+err.message);reject(err);
+    };
+    worker.postMessage({imagenes,filtros:JSON.parse(JSON.stringify(filtros))});
+  });
 }
 
 /* ═══ 7. ACCIONES TARJETA ═══ */
@@ -625,6 +716,8 @@ async function renombrarTarjeta(id,el){
 /* ═══ 8. VISOR 2×6 ═══ */
 let _visorNombres=[],_visorZip=null,_visorCursor=0,_visorCargando=false,_visorObserver=null;
 let _seleccionadas=new Set(),_visorTarjetaId=null;
+let _visorBlobs={};   // nombre → blob modificado en memoria
+let _visorDirty=false; // hay cambios sin guardar
 const VISOR_BATCH=12;
 
 async function verTarjeta(id){
@@ -641,6 +734,10 @@ async function verTarjeta(id){
   document.getElementById('visorOverlay').classList.add('show');
   _visorZip=await JSZip.loadAsync(zip);
   _visorNombres=Object.keys(_visorZip.files).filter(n=>!_visorZip.files[n].dir&&/\.(jpe?g|png|webp|gif|bmp)$/i.test(n)).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+  // Cargar todos los blobs en memoria una sola vez
+  _visorBlobs={};_visorDirty=false;
+  for(const n of _visorNombres){_visorBlobs[n]=await _visorZip.files[n].async('blob');}
+  document.getElementById('btnGuardarCambios').style.display='none';
   body.innerHTML='';
   const grid=document.createElement('div');grid.className='visor-grid';grid.id='visorGrid';body.appendChild(grid);
   const sentinel=document.createElement('div');sentinel.className='visor-sentinel';sentinel.id='visorSentinel';grid.appendChild(sentinel);
@@ -652,6 +749,8 @@ async function verTarjeta(id){
 
 function crearImgWrap(blob,nombre){
   const wrap=document.createElement('div');wrap.className='img-wrap';wrap.dataset.nombre=nombre;
+  wrap.draggable=false; // se activa solo en modo reordenar
+
   const check=document.createElement('div');check.className='img-check';check.title='Seleccionar';
   check.addEventListener('click',e=>{
     e.stopPropagation();
@@ -659,9 +758,19 @@ function crearImgWrap(blob,nombre){
     else{_seleccionadas.add(nombre);wrap.classList.add('selected');}
     actualizarToolbarVisor();
   });
+
+  const rotBtn=document.createElement('div');rotBtn.className='img-rotate-btn';rotBtn.title='Rotar 90°';rotBtn.textContent='↻';
+  rotBtn.addEventListener('click',e=>{e.stopPropagation();rotarImagen(nombre,wrap,90);});
+
+  const num=document.createElement('div');num.className='img-num';
+
   const img=document.createElement('img');img.src=URL.createObjectURL(blob);img.alt=nombre;img.title=nombre;
-  img.addEventListener('click',e=>{e.stopPropagation();abrirCropManual(nombre);});
-  wrap.appendChild(check);wrap.appendChild(img);return wrap;
+  
+  img.addEventListener('click',e=>{e.stopPropagation();});
+
+  wrap.appendChild(check);wrap.appendChild(rotBtn);wrap.appendChild(num);wrap.appendChild(img);
+  
+  return wrap;
 }
 
 function actualizarToolbarVisor(){
@@ -686,7 +795,7 @@ async function cargarSiguienteLote(){
   grid.insertBefore(loader,sentinel);
   const lote=_visorNombres.slice(_visorCursor,_visorCursor+VISOR_BATCH);
   for(const nombre of lote){
-    const blob=await _visorZip.files[nombre].async('blob');
+    const blob=_visorBlobs[nombre]||await _visorZip.files[nombre].async('blob');
     const wrap=crearImgWrap(blob,nombre);
     if(_seleccionadas.has(nombre))wrap.classList.add('selected');
     grid.insertBefore(wrap,loader);
@@ -701,19 +810,27 @@ async function cargarSiguienteLote(){
 }
 
 function cerrarVisor(){
+  if(_visorDirty&&!confirm('Hay cambios sin guardar. ¿Cerrar de todas formas?'))return;
   document.getElementById('visorOverlay').classList.remove('show');
   document.getElementById('visorToolbar').classList.remove('show');
   if(_visorObserver){_visorObserver.disconnect();_visorObserver=null;}
   const body=document.getElementById('visorBody');
   body.querySelectorAll('img').forEach(i=>URL.revokeObjectURL(i.src));body.innerHTML='';
   _visorNombres=[];_visorZip=null;_visorCursor=0;_seleccionadas=new Set();
+  _visorBlobs={};_visorDirty=false;
 }
 
 /* ═══ 9. AUTO-CROP ═══ */
+function recortarSeleccion(){
+  if(!_seleccionadas.size){setStatus('❌ Selecciona al menos una imagen');return;}
+  const lista=[..._seleccionadas];
+  abrirCropManual(lista[0],lista);
+}
+
 async function autoCropSeleccion(){
   if(!_seleccionadas.size){setStatus('❌ Selecciona al menos una imagen');return;}
   const t=await dbObtener(_visorTarjetaId);
-  if(!t?.zipFiltradoBlob){setStatus('❌ Necesita ZIP filtrado para recortar');return;}
+  if(!t?.zipFiltradoBlob&&!t?.zipOriginalBlob){setStatus('❌ Sin imágenes');return;}
 
   const cantSelec=_seleccionadas.size;
   const idTarjeta=_visorTarjetaId;
@@ -722,25 +839,21 @@ async function autoCropSeleccion(){
   cerrarVisor();
   setStatus(`✂️ Auto-recortando ${cantSelec} imágenes…`);setProgress(0);
 
-  const zipIn=await JSZip.loadAsync(t.zipFiltradoBlob);
-  const zipOut=new JSZip();
-  const nombres=Object.keys(zipIn.files).filter(n=>!zipIn.files[n].dir);
   let done=0;
-  for(const nombre of nombres){
-    const blob=await zipIn.files[nombre].async('blob');
-    zipOut.file(nombre, selCopia.has(nombre) ? await autoCropBlob(blob) : blob);
-    setProgress(Math.round(++done/nombres.length*100));
-    setStatus(`✂️ ${done}/${nombres.length} — ${nombre}`);
+  for(const nombre of _visorNombres){
+    if(selCopia.has(nombre)){
+      _visorBlobs[nombre]=await autoCropBlob(_visorBlobs[nombre]);
+    }
+    setProgress(Math.round(++done/_visorNombres.length*100));
+    setStatus(`✂️ ${done}/${_visorNombres.length} — ${nombre}`);
   }
-
-  t.zipFiltradoBlob=await zipOut.generateAsync({type:'blob'});
-  t.nombreArchivoFilt=`filt_${uuid()}.zip`;
-  await dbGuardar(t);
-  setStatus(`✅ Auto-recorte aplicado a ${cantSelec} imágenes`);
+  _marcarDirty();
+  setStatus(`✅ Auto-recorte listo — pulsa 💾 Guardar cambios`);
   setProgress(100);
-  renderGrid();
   await verTarjeta(idTarjeta); // ← reabre el visor con el ZIP actualizado
 }
+  
+  
 function detectarBordesBlanco(ctx,w,h,umbral=245){
   const d=ctx.getImageData(0,0,w,h).data;const eB=i=>d[i]>=umbral&&d[i+1]>=umbral&&d[i+2]>=umbral;
   let top=0,bottom=h-1,left=0,right=w-1;
@@ -901,16 +1014,12 @@ function _evToImg(e){
   };
 }
 
-// Devuelve {tipo:'esquina',idx} o {tipo:'medio',idx} o null
-// Lados: 0=top(TL-TR), 1=right(TR-BR), 2=bottom(BR-BL), 3=left(BL-TL)
 function _hitPunto(ix,iy){
   const canvas=document.getElementById('cropCanvas');const rect=canvas.getBoundingClientRect();
   const r=28*(_cropImgW/rect.width);
-  // Primero esquinas (prioridad)
   for(let i=0;i<4;i++){
     if(Math.hypot(_esquinas[i].x-ix,_esquinas[i].y-iy)<r)return{tipo:'esquina',idx:i};
   }
-  // Luego puntos medios de cada lado
   for(let i=0;i<4;i++){
     const a=_esquinas[i],b=_esquinas[(i+1)%4];
     const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
@@ -967,9 +1076,9 @@ function _cargarCropBlob(blob){
   });
 }
 
-async function abrirCropManual(nombre){
+async function abrirCropManual(nombre,listaForzada=null){
   if(!_visorZip)return;
-  _cropLista=_visorNombres.slice();
+  _cropLista=listaForzada?listaForzada:_visorNombres.slice();
   _cropIdx=Math.max(0,_cropLista.indexOf(nombre));
   await _navegarCrop(0);
   document.getElementById('cropOverlay').classList.add('show');
@@ -979,122 +1088,60 @@ async function _navegarCrop(delta){
   const sig=_cropIdx+delta;if(sig<0||sig>=_cropLista.length)return;
   _cropIdx=sig;_cropNombre=_cropLista[_cropIdx];
   document.getElementById('cropNombreLabel').textContent=`${_cropIdx+1} / ${_cropLista.length}  —  ${_cropNombre.replace(/\.[^.]+$/,'')}`;
-  const blob=await _visorZip.files[_cropNombre].async('blob');
-  await _cargarCropBlob(blob);
+  await _cargarCropBlob(_visorBlobs[_cropNombre]);
 }
 
 function resetCropEsquinas(){_detectarBordesDocumento();_dibujarCrop();}
 
-// _dragging: {tipo:'esquina',idx} | {tipo:'medio',idx} | null
-const _cCanvas=document.getElementById('cropCanvas');
-
+// Eventos canvas crop
 function _aplicarDrag(p){
   if(!_dragging)return;
   if(_dragging.tipo==='esquina'){
     _esquinas[_dragging.idx]={x:p.x,y:p.y};
   } else {
-    // Punto medio del lado idx: mueve las 2 esquinas del lado en el eje correspondiente
-    const i=_dragging.idx;
-    const a=i,b=(i+1)%4; // índices de las dos esquinas del lado
-    // Lados 0(top) y 2(bottom) → mover en Y
-    // Lados 1(right) y 3(left) → mover en X
-    if(i===0||i===2){
-      _esquinas[a].y=p.y;_esquinas[b].y=p.y;
-    } else {
-      _esquinas[a].x=p.x;_esquinas[b].x=p.x;
-    }
+    const i=_dragging.idx,a=i,b=(i+1)%4;
+    if(i===0||i===2){_esquinas[a].y=p.y;_esquinas[b].y=p.y;}
+    else{_esquinas[a].x=p.x;_esquinas[b].x=p.x;}
   }
   _dibujarCrop();
 }
-
 function _finDrag(){
   if(!_dragging)return;
-  if(_dragging.tipo==='esquina'){
-    _snapEsquina(_dragging.idx);_dibujarCrop();
-  }
-  // Los puntos medios no hacen snap (ya mueven el lado entero)
+  if(_dragging.tipo==='esquina'){_snapEsquina(_dragging.idx);_dibujarCrop();}
   _dragging=null;
 }
-
-_cCanvas.addEventListener('mousedown',e=>{
-  e.preventDefault();const p=_evToImg(e);_dragging=_hitPunto(p.x,p.y);
-});
-_cCanvas.addEventListener('touchstart',e=>{
-  e.preventDefault();const p=_evToImg(e);_dragging=_hitPunto(p.x,p.y);
-},{passive:false});
-window.addEventListener('mousemove',e=>{
-  if(!_dragging)return;_aplicarDrag(_evToImg(e));
-});
-window.addEventListener('touchmove',e=>{
-  if(!_dragging)return;e.preventDefault();_aplicarDrag(_evToImg(e));
-},{passive:false});
+const _cCanvas=document.getElementById('cropCanvas');
+_cCanvas.addEventListener('mousedown',e=>{e.preventDefault();const p=_evToImg(e);_dragging=_hitPunto(p.x,p.y);});
+_cCanvas.addEventListener('touchstart',e=>{e.preventDefault();const p=_evToImg(e);_dragging=_hitPunto(p.x,p.y);},{passive:false});
+window.addEventListener('mousemove',e=>{if(!_dragging)return;_aplicarDrag(_evToImg(e));});
+window.addEventListener('touchmove',e=>{if(!_dragging)return;e.preventDefault();_aplicarDrag(_evToImg(e));},{passive:false});
 window.addEventListener('mouseup',()=>_finDrag());
 window.addEventListener('touchend',()=>_finDrag());
 
-// Buffer de ediciones en memoria: Map<nombre, blob>
-let _editBuffer = new Map();
-
-async function aplicarCropAlBuffer(){
+async function confirmarCropManual(){
+  if(!_visorTarjetaId)return;
+  const t=await dbObtener(_visorTarjetaId);if(!t?.zipFiltradoBlob&&!t?.zipOriginalBlob){setStatus('❌ Sin imágenes');return;}
   const xs=_esquinas.map(e=>e.x),ys=_esquinas.map(e=>e.y);
   const x1=Math.round(Math.min(...xs)),y1=Math.round(Math.min(...ys));
   const rw=Math.round(Math.max(...xs))-x1,rh=Math.round(Math.max(...ys))-y1;
   if(rw<10||rh<10){setStatus('❌ Área muy pequeña');return;}
-
-  // Obtener blob base: del buffer si ya fue editada, si no del ZIP original
-  const blobBase = _editBuffer.has(_cropNombre)
-    ? _editBuffer.get(_cropNombre)
-    : await _getBlobDelZip(_cropNombre);
-
-  const rect={x:x1,y:y1,w:rw,h:rh};
-  const recortado = await _doCropBlob(blobBase, rect);
-  _editBuffer.set(_cropNombre, recortado);
-
-  // Marcar visualmente en el label
-  setStatus(`📌 "${_cropNombre}" en buffer (${_editBuffer.size} pendiente${_editBuffer.size!==1?'s':''})`);
-
-  // Actualizar la imagen en el canvas para ver el resultado
-  await _cargarCropBlob(recortado);
-}
-
-async function _getBlobDelZip(nombre){
-  if(!_visorZip)return null;
-  return await _visorZip.files[nombre].async('blob');
-}
-
-async function guardarBufferYCerrar(){
-  if(!_editBuffer.size){descartarBufferYCerrar();return;}
-  const t=await dbObtener(_visorTarjetaId);
-  if(!t?.zipFiltradoBlob){setStatus('❌ Sin ZIP filtrado');return;}
-
-  setStatus(`💾 Guardando ${_editBuffer.size} edición${_editBuffer.size!==1?'es':''}…`);setProgress(0);
-  const zipIn=await JSZip.loadAsync(t.zipFiltradoBlob);
-  const zipOut=new JSZip();
-  const nombres=Object.keys(zipIn.files).filter(n=>!zipIn.files[n].dir);
-  let done=0;
-  for(const nombre of nombres){
-    const blob = _editBuffer.has(nombre)
-      ? _editBuffer.get(nombre)
-      : await zipIn.files[nombre].async('blob');
-    zipOut.file(nombre, blob);
-    setProgress(Math.round(++done/nombres.length*100));
+  const rect={x:x1,y:y1,w:rw,h:rh};const nombreRecortado=_cropNombre;
+  setStatus(`📐 Recortando "${nombreRecortado}"…`);setProgress(0);
+  // Aplicar recorte solo en el array en memoria
+  const recortadoBlob=await _doCropBlob(_visorBlobs[nombreRecortado],rect);
+  _visorBlobs[nombreRecortado]=recortadoBlob;
+  _marcarDirty();
+  // Si quedan más imágenes en la lista, avanzar a la siguiente
+  const siguiente=_cropIdx+1;
+  if(siguiente<_cropLista.length){
+    setStatus(`✅ ${_cropIdx+1}/${_cropLista.length} — avanzando…`);
+    _cropIdx=siguiente;_cropNombre=_cropLista[_cropIdx];
+    document.getElementById('cropNombreLabel').textContent=`${_cropIdx+1} / ${_cropLista.length}  —  ${_cropNombre.replace(/\.[^.]+$/,'')}`;
+    await _cargarCropBlob(_visorBlobs[_cropNombre]);
+  } else {
+    setStatus(`✅ Recorte listo — pulsa 💾 Guardar cambios`);setProgress(100);
+    cerrarCropManual();
   }
-  t.zipFiltradoBlob=await zipOut.generateAsync({type:'blob'});
-  t.nombreArchivoFilt=`filt_${uuid()}.zip`;
-  await dbGuardar(t);
-  setStatus(`✅ ${_editBuffer.size} edición${_editBuffer.size!==1?'es':''} guardada${_editBuffer.size!==1?'s':''}`);
-  setProgress(100);
-  _editBuffer.clear();
-  cerrarCropManual();
-  renderGrid();
-  await verTarjeta(_visorTarjetaId);
-}
-
-function descartarBufferYCerrar(){
-  if(_editBuffer.size>0){
-    if(!confirm(`Hay ${_editBuffer.size} edición${_editBuffer.size!==1?'es':''} sin guardar. ¿Descartar?`))return;
-  }
-  _editBuffer.clear();
-  cerrarCropManual();
 }
 
 function _doCropBlob(blob,rect){
@@ -1113,71 +1160,6 @@ function _doCropBlob(blob,rect){
 function cerrarCropManual(){
   document.getElementById('cropOverlay').classList.remove('show');
   _dragging=null;_cropImgEl=null;_cropNombre=null;
-  _editBuffer.clear();
-}
-
-// Al navegar entre imágenes en el crop, usar el buffer si existe
-const _navegarCropOrig=_navegarCrop;
-async function _navegarCrop(delta){
-  const sig=_cropIdx+delta;if(sig<0||sig>=_cropLista.length)return;
-  _cropIdx=sig;_cropNombre=_cropLista[_cropIdx];
-  document.getElementById('cropNombreLabel').textContent=
-    `${_cropIdx+1} / ${_cropLista.length}  —  ${_cropNombre.replace(/\.[^.]+$/,'')}${_editBuffer.has(_cropNombre)?' 📌':''}`;
-  // Usar blob del buffer si ya fue editado, si no del ZIP
-  const blob = _editBuffer.has(_cropNombre)
-    ? _editBuffer.get(_cropNombre)
-    : await _visorZip.files[_cropNombre].async('blob');
-  await _cargarCropBlob(blob);
-}
-
-/* ── Rotar imágenes seleccionadas ── */
-async function rotarSeleccion(grados){
-  if(!_seleccionadas.size){setStatus('❌ Selecciona imágenes primero');return;}
-  const t=await dbObtener(_visorTarjetaId);
-  if(!t?.zipFiltradoBlob){setStatus('❌ Necesita ZIP filtrado');return;}
-  const cantSelec=_seleccionadas.size;
-  const idTarjeta=_visorTarjetaId;
-  const selCopia=new Set(_seleccionadas);
-
-  cerrarVisor();
-  setStatus(`↻ Rotando ${cantSelec} imágenes…`);setProgress(0);
-
-  const zipIn=await JSZip.loadAsync(t.zipFiltradoBlob);
-  const zipOut=new JSZip();
-  const nombres=Object.keys(zipIn.files).filter(n=>!zipIn.files[n].dir);
-  let done=0;
-  for(const nombre of nombres){
-    const blob=await zipIn.files[nombre].async('blob');
-    zipOut.file(nombre, selCopia.has(nombre) ? await _rotarBlob(blob,grados) : blob);
-    setProgress(Math.round(++done/nombres.length*100));
-    setStatus(`↻ ${done}/${nombres.length} — ${nombre}`);
-  }
-  t.zipFiltradoBlob=await zipOut.generateAsync({type:'blob'});
-  t.nombreArchivoFilt=`filt_${uuid()}.zip`;
-  await dbGuardar(t);
-  setStatus(`✅ ${cantSelec} imágenes rotadas ${grados>0?'+':''}${grados}°`);
-  setProgress(100);
-  renderGrid();
-  await verTarjeta(idTarjeta);
-}
-
-function _rotarBlob(blob,grados){
-  return new Promise(res=>{
-    const url=URL.createObjectURL(blob);const img=new Image();
-    img.onload=()=>{
-      const rad=grados*Math.PI/180;
-      const sin=Math.abs(Math.sin(rad)),cos=Math.abs(Math.cos(rad));
-      const W=Math.round(img.naturalWidth*cos+img.naturalHeight*sin);
-      const H=Math.round(img.naturalWidth*sin+img.naturalHeight*cos);
-      const c=document.createElement('canvas');c.width=W;c.height=H;
-      const ctx=c.getContext('2d');
-      ctx.translate(W/2,H/2);ctx.rotate(rad);
-      ctx.drawImage(img,-img.naturalWidth/2,-img.naturalHeight/2);
-      URL.revokeObjectURL(url);
-      const mime=fmtActivo==='png'?'image/png':fmtActivo==='webp'?'image/webp':'image/jpeg';
-      c.toBlob(b=>res(b),mime,filtros.calidad/100);
-    };img.src=url;
-  });
 }
 
 /* ═══ 11. RENDER GRID ═══ */
@@ -1258,7 +1240,182 @@ function cerrarModalNueva(){document.getElementById('modalNueva').classList.remo
 document.getElementById('modalNueva').addEventListener('click',e=>{if(e.target===document.getElementById('modalNueva'))cerrarModalNueva();});
 
 /* ═══ 14. INIT ═══ */
+async function aplicarFiltroSeleccion(){
+  if(!_seleccionadas.size){setStatus('❌ Selecciona al menos una imagen');return;}
+  const presetNombre=document.getElementById('selFiltroVisor').value;
+  const f={...PRESETS[presetNombre]};
+  setStatus(`⚡ Aplicando ${presetNombre}…`);
+  let done=0;
+  for(const nombre of _seleccionadas){
+    const blob=_visorBlobs[nombre];
+    // Blob → ImageData
+    const bmp=await createImageBitmap(blob);
+    const c=document.createElement('canvas');c.width=bmp.width;c.height=bmp.height;
+    const ctx=c.getContext('2d');ctx.drawImage(bmp,0,0);
+    // Aplicar filtro
+    const canvasFiltrado=aplicarFiltroACanvas(c,f);
+    // Canvas filtrado → blob
+    const nuevoBlob=await new Promise(res=>canvasFiltrado.toBlob(res,'image/jpeg',0.92));
+    _visorBlobs[nombre]=nuevoBlob;
+    // Actualizar imagen en pantalla
+    const wrap=[...document.querySelectorAll('#visorGrid .img-wrap')].find(w=>w.dataset.nombre===nombre);
+    if(wrap){
+      const img=wrap.querySelector('img');
+      URL.revokeObjectURL(img.src);
+      img.src=URL.createObjectURL(nuevoBlob);
+    }
+    setProgress(Math.round(++done/_seleccionadas.size*100));
+  }
+  _marcarDirty();
+  setStatus(`✅ Filtro "${presetNombre}" aplicado a ${done} imagen(es) — pulsa 💾 Guardar`);
+}
+
+function _marcarDirty(){
+  _visorDirty=true;
+  document.getElementById('btnGuardarCambios').style.display='inline-flex';
+}
+async function guardarCambiosVisor(){
+  if(!_visorTarjetaId||!_visorDirty)return;
+  setStatus('💾 Guardando cambios…');
+  const t=await dbObtener(_visorTarjetaId);
+  const zipOut=new JSZip();
+  for(const nombre of _visorNombres){
+    zipOut.file(nombre,_visorBlobs[nombre]);
+  }
+  const zipBlob=await zipOut.generateAsync({type:'blob'},m=>setProgress(Math.round(m.percent)));
+  t.zipFiltradoBlob=zipBlob;
+  t.nombreArchivoFilt=`filt_${uuid()}.zip`;
+  await dbGuardar(t);
+  _visorZip=await JSZip.loadAsync(zipBlob);
+  _visorDirty=false;
+  document.getElementById('btnGuardarCambios').style.display='none';
+  setStatus('✅ Cambios guardados');setProgress(100);
+  renderGrid();
+}
 updateLabels();syncSliders();renderGrid();
+
+/* ═══ ROTAR Y REORDENAR ═══ */
+function moverSeleccion(dir){
+  if(_seleccionadas.size===0){setStatus('Selecciona imágenes primero');return;}
+  const grid=document.getElementById('visorGrid');
+  const sentinel=document.getElementById('visorSentinel');
+  let wraps=[...grid.querySelectorAll('.img-wrap')];
+  // dir=-1 subir: recorrer de arriba a abajo. dir=1 bajar: de abajo a arriba
+  if(dir===1)wraps=wraps.reverse();
+  for(const w of wraps){
+    if(!_seleccionadas.has(w.dataset.nombre))continue;
+    if(dir===-1){
+      const prev=w.previousElementSibling;
+      if(prev&&prev.classList.contains('img-wrap'))grid.insertBefore(w,prev);
+    } else {
+      const next=w.nextElementSibling;
+      if(next&&next!==sentinel&&next.classList.contains('img-wrap'))next.after(w);
+    }
+  }
+  sincronizarOrdenNombres();actualizarNumeracion();
+}
+const _rotaciones={}; // nombre → grados acumulados
+
+function limpiarDragOver(){
+  document.querySelectorAll('#visorGrid .img-wrap').forEach(w=>w.classList.remove('drag-over'));
+}
+function sincronizarOrdenNombres(){
+  const wraps=[...document.querySelectorAll('#visorGrid .img-wrap')];
+  _visorNombres=wraps.map(w=>w.dataset.nombre);
+}
+function actualizarNumeracion(){
+  document.querySelectorAll('#visorGrid .img-wrap').forEach((w,i)=>{
+    const n=w.querySelector('.img-num');if(n)n.textContent=i+1;
+  });
+}
+
+
+async function rotarImagen(nombre,wrap,grados){
+  const blob=_visorBlobs[nombre];
+  const bmp=await createImageBitmap(blob);
+  const rad=grados*Math.PI/180;
+  const sw=Math.abs(grados)===90||Math.abs(grados)===270?bmp.height:bmp.width;
+  const sh=Math.abs(grados)===90||Math.abs(grados)===270?bmp.width:bmp.height;
+  const c=document.createElement('canvas');c.width=sw;c.height=sh;
+  const ctx=c.getContext('2d');
+  ctx.translate(sw/2,sh/2);ctx.rotate(rad);
+  ctx.drawImage(bmp,-bmp.width/2,-bmp.height/2);
+  const rotadoBlob=await new Promise(res=>c.toBlob(res,'image/jpeg',0.92));
+  // Actualizar array en memoria
+  _visorBlobs[nombre]=rotadoBlob;
+  _marcarDirty();
+  // Actualizar imagen en pantalla
+  const img=wrap.querySelector('img');
+  URL.revokeObjectURL(img.src);
+  img.src=URL.createObjectURL(rotadoBlob);
+}
+async function rotarSeleccion(grados){
+  if(_seleccionadas.size===0){setStatus('Selecciona imágenes primero');return;}
+  setStatus('↻ Rotando…');
+  const wraps=[...document.querySelectorAll('#visorGrid .img-wrap')];
+  for(const w of wraps){
+    if(_seleccionadas.has(w.dataset.nombre))await rotarImagen(w.dataset.nombre,w,grados);
+  }
+  setStatus(`✅ ${_seleccionadas.size} imagen(es) rotada(s) y guardada(s)`);
+}
+</script>
+
+<script id="worker-src" type="text/worker-src">
+'use strict';
+function boxBlurGray(gray,w,h,r){
+  var tmp=new Float32Array(gray.length),out=new Float32Array(gray.length),diam=2*r+1;
+  for(var y=0;y<h;y++){var sum=0,row=y*w;for(var x=0;x<diam&&x<w;x++)sum+=gray[row+x];var cnt=Math.min(diam,w);tmp[row+r]=sum/cnt;for(var x=1;x<w;x++){if(x+r<w){sum+=gray[row+x+r];cnt++;}if(x-r-1>=0){sum-=gray[row+x-r-1];cnt--;}tmp[row+x]=sum/cnt;}}
+  for(var x=0;x<w;x++){var sum=0,cnt=0;for(var y=0;y<r&&y<h;y++){sum+=tmp[y*w+x];cnt++;}for(var y=0;y<h;y++){if(y+r<h){sum+=tmp[(y+r)*w+x];cnt++;}if(y-r-1>=0){sum-=tmp[(y-r-1)*w+x];cnt--;}out[y*w+x]=sum/cnt;}}
+  return out;
+}
+function applySharpPixels(data,w,h,amount){
+  var src=new Uint8ClampedArray(data),k=amount*0.3;
+  for(var y=1;y<h-1;y++)for(var x=1;x<w-1;x++){var i=(y*w+x)*4;for(var c=0;c<3;c++){var l=-src[i-w*4+c]-src[i-4+c]+5*src[i+c]-src[i+4+c]-src[i+w*4+c];data[i+c]=Math.max(0,Math.min(255,src[i+c]+l*k/4));}data[i+3]=src[i+3];}
+}
+function applyMagicProPixels(pixels,w,h){
+  var n=w*h,gray=new Float32Array(n);
+  for(var i=0;i<n;i++){var p=i*4;gray[i]=0.299*pixels[p]+0.587*pixels[p+1]+0.114*pixels[p+2];}
+  var r=Math.max(20,Math.min(80,Math.round(Math.min(w,h)*0.035)));
+  var bg=boxBlurGray(gray,w,h,r);
+  var norm=new Float32Array(n);
+  for(var i=0;i<n;i++)norm[i]=Math.min(255,(gray[i]/(bg[i]+1))*230);
+  var sorted=norm.slice().sort(function(a,b){return a-b;});
+  var p2=sorted[Math.floor(n*0.02)],p98=sorted[Math.floor(n*0.98)],range=p98-p2||1;
+  for(var i=0;i<n;i++)norm[i]=Math.max(0,Math.min(255,(norm[i]-p2)/range*255));
+  var out=new Uint8ClampedArray(pixels.length);
+  for(var i=0;i<n;i++){var v=norm[i],g=v>130?Math.min(255,v*1.25-32)|0:v<70?Math.max(0,v*0.65)|0:Math.max(0,v*0.85-8)|0;var p=i*4;out[p]=out[p+1]=out[p+2]=g;out[p+3]=255;}
+  applySharpPixels(out,w,h,3.5);
+  return out;
+}
+function applyCssFiltersPixels(pixels,w,h,f){
+  var data=new Uint8ClampedArray(pixels);
+  var bright=f.brillo/100,cont=f.contraste/100,sepia=f.sepia/100,sat=f.saturacion/100;
+  for(var i=0;i<data.length;i+=4){
+    var r=data[i],g=data[i+1],b=data[i+2];
+    if(f.gris){var gr=0.299*r+0.587*g+0.114*b;r=g=b=gr;}
+    else if(sat!==1){var gr=0.299*r+0.587*g+0.114*b;r=gr+(r-gr)*sat;g=gr+(g-gr)*sat;b=gr+(b-gr)*sat;}
+    if(sepia>0){var sr=r*0.393+g*0.769+b*0.189,sg=r*0.349+g*0.686+b*0.168,sb=r*0.272+g*0.534+b*0.131;r=r+(sr-r)*sepia;g=g+(sg-g)*sepia;b=b+(sb-b)*sepia;}
+    r=((r*bright)-128)*cont+128;g=((g*bright)-128)*cont+128;b=((b*bright)-128)*cont+128;
+    if(f.invert){r=255-r;g=255-g;b=255-b;}
+    data[i]=Math.max(0,Math.min(255,r));data[i+1]=Math.max(0,Math.min(255,g));data[i+2]=Math.max(0,Math.min(255,b));
+  }
+  if(f.sharp>0)applySharpPixels(data,w,h,f.sharp);
+  if(f.thresh>0){for(var i=0;i<data.length;i+=4){var v=(0.299*data[i]+0.587*data[i+1]+0.114*data[i+2])>=f.thresh?255:0;data[i]=data[i+1]=data[i+2]=v;}}
+  return data;
+}
+self.onmessage=function(e){
+  var imagenes=e.data.imagenes,f=e.data.filtros,resultados=[];
+  for(var i=0;i<imagenes.length;i++){
+    var im=imagenes[i];
+    try{
+      var out=f._magic?applyMagicProPixels(im.pixels,im.w,im.h):applyCssFiltersPixels(im.pixels,im.w,im.h,f);
+      resultados.push({nombre:im.nombre,w:im.w,h:im.h,pixels:out.buffer,ok:true});
+    }catch(err){resultados.push({nombre:im.nombre,ok:false,error:err.message});}
+    self.postMessage({type:'progress',idx:i,total:imagenes.length});
+  }
+  var transferables=resultados.filter(function(r){return r.ok;}).map(function(r){return r.pixels;});
+  self.postMessage({type:'done',resultados:resultados},transferables);
+};
 </script>
 </body>
 </html>
