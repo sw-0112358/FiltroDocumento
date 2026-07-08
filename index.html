@@ -664,17 +664,27 @@ async function descargarZipFiltrado(id){
   const t=await dbObtener(id);if(!t?.zipFiltradoBlob){setStatus('❌ Sin ZIP filtrado');return;}
   const url=URL.createObjectURL(t.zipFiltradoBlob);const a=document.createElement('a');a.href=url;a.download=(t.nombre||'filtrado')+'_filtrado.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);setStatus(`⬇ Descargando "${t.nombre}"`);
 }
-async function compartirPDF(id){
+async function compartirPDF(id,modo='completo'){
   const t=await dbObtener(id);
-  if(!t?.zipFiltradoBlob){setStatus('❌ Sin ZIP filtrado');return;}
+  if(!t?.zipFiltradoBlob&&!t?.zipOriginalBlob){setStatus('❌ Sin ZIP');return;}
   setStatus('📄 Generando PDF…');setProgress(0);
 
-  const zipIn=await JSZip.loadAsync(t.zipFiltradoBlob);
-  const nombres=Object.keys(zipIn.files)
+  const zipIn=await JSZip.loadAsync(t.zipFiltradoBlob||t.zipOriginalBlob);
+  const todosNombres=Object.keys(zipIn.files)
     .filter(n=>!zipIn.files[n].dir&&/\.(jpe?g|png|webp)$/i.test(n))
     .sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
 
-  if(!nombres.length){setStatus('❌ Sin imágenes en el ZIP');return;}
+  // Filtrar según modo: frente=índices impares(1,3,5…), vuelto=pares(2,4,6…)
+  const nombres=todosNombres.filter((_,i)=>{
+    if(modo==='frente')return i%2===0;
+    if(modo==='vuelto')return i%2===1;
+    return true;
+  });
+
+  if(!nombres.length){setStatus(`❌ Sin imágenes para PDF ${modo}`);return;}
+
+  const labelModo=modo==='frente'?'Frente':modo==='vuelto'?'Vuelto':'Completo';
+  setStatus(`📄 Generando PDF ${labelModo}…`);
 
   // Letter: 215.9 × 279.4 mm
   const {jsPDF}=window.jspdf;
@@ -714,7 +724,8 @@ async function compartirPDF(id){
 
   // Descargar / compartir
   const pdfBlob=pdf.output('blob');
-  const pdfNombre=(t.nombre||'documento')+'.pdf';
+  const sufijo=modo==='frente'?'_frente':modo==='vuelto'?'_vuelto':'';
+  const pdfNombre=(t.nombre||'documento')+sufijo+'.pdf';
 
   // En móvil intentar Web Share API
   if(navigator.share&&navigator.canShare){
@@ -1240,7 +1251,9 @@ async function renderGrid(){
             <div class="card-menu-dropdown">
               <button class="card-menu-item" onclick="verTarjeta('${t.id}');cerrarCardMenus()" ${!tieneFilt&&!tieneOrig?'disabled':''}>👁 Ver imágenes</button>
               <button class="card-menu-item" onclick="descargarZipFiltrado('${t.id}');cerrarCardMenus()" ${!tieneFilt?'disabled':''}>⬇ Descargar ZIP</button>
-              <button class="card-menu-item" onclick="compartirPDF('${t.id}');cerrarCardMenus()" ${!tieneFilt?'disabled':''}>📄 Exportar PDF</button>
+              <button class="card-menu-item" onclick="compartirPDF('${t.id}','completo');cerrarCardMenus()" ${!tieneFilt?'disabled':''}>📄 PDF Completo</button>
+              <button class="card-menu-item" onclick="compartirPDF('${t.id}','frente');cerrarCardMenus()" ${!tieneFilt?'disabled':''}>📄 PDF Frente</button>
+              <button class="card-menu-item" onclick="compartirPDF('${t.id}','vuelto');cerrarCardMenus()" ${!tieneFilt?'disabled':''}>📄 PDF Vuelto</button>
               <div class="card-menu-sep"></div>
               <button class="card-menu-item danger" onclick="limpiarOriginal('${t.id}');cerrarCardMenus()" ${!tieneOrig?'disabled':''}>🗑 Borrar original</button>
               <button class="card-menu-item danger" onclick="eliminarTarjeta('${t.id}');cerrarCardMenus()">✕ Eliminar tarjeta</button>
