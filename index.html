@@ -175,6 +175,13 @@ input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;bac
 .vtbtn.vtbtn-warn:hover{background:rgba(230,126,34,1);}
 .vt-filtro-sel{padding:7px 10px;border-radius:7px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.12);color:#fff;font-size:0.78rem;font-weight:500;cursor:pointer;outline:none;}
 .vt-filtro-sel option{background:#1e1e2e;color:#fff;}
+.borra-overlay{display:none;position:fixed;inset:0;background:#000;z-index:800;flex-direction:column;}
+.borra-overlay.show{display:flex;}
+.borra-header{padding:8px 12px;background:rgba(0,0,0,0.85);flex-shrink:0;text-align:center;}
+.borra-header span{color:#fff;font-size:0.78rem;font-weight:500;}
+.borra-wrap{flex:1;overflow:hidden;position:relative;display:flex;align-items:center;justify-content:center;touch-action:none;background:#222;}
+.borra-wrap canvas{position:absolute;transform-origin:center center;cursor:crosshair;}
+.borra-acciones{display:flex;gap:8px;padding:10px 12px;background:rgba(0,0,0,0.85);flex-shrink:0;justify-content:center;flex-wrap:wrap;}
 .vt-sel-count{font-size:0.75rem;color:rgba(255,255,255,0.7);margin-right:auto;}
 
 /* Crop manual */
@@ -300,6 +307,24 @@ input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;bac
       <option value="original">🔲 Original</option>
     </select>
     <button class="vtbtn vtbtn-accent" onclick="aplicarFiltroSeleccion()">⚡ Aplicar filtro</button>
+    <button class="vtbtn" onclick="abrirBorrado()">✏️ Borrar zona</button>
+  </div>
+</div>
+
+<!-- Borrado con zoom -->
+<div class="borra-overlay" id="borraOverlay">
+  <div class="borra-header">
+    <span id="borraNombreLabel"></span>
+  </div>
+  <div class="borra-wrap" id="borraWrap">
+    <canvas id="borraCanvas"></canvas>
+  </div>
+  <div class="borra-acciones">
+    <button class="vtbtn vtbtn-warn" onclick="_borraDeshacer()">↩ Deshacer</button>
+    <button class="vtbtn" onclick="_borraResetZoom()">⊡ Ajustar</button>
+    <button class="vtbtn vtbtn-accent" onclick="confirmarBorrado()">✅ Aplicar</button>
+    <button class="vtbtn" style="background:#27ae60;border-color:#27ae60" onclick="guardarBorrado()">💾 Guardar</button>
+    <button class="vtbtn" onclick="cerrarBorrado()">✕ Cerrar</button>
   </div>
 </div>
 
@@ -1268,6 +1293,216 @@ async function aplicarFiltroSeleccion(){
   }
   _marcarDirty();
   setStatus(`✅ Filtro "${presetNombre}" aplicado a ${done} imagen(es) — pulsa 💾 Guardar`);
+}
+
+/* ═══ BORRADO DE ZONA CON ZOOM ═══ */
+let _borraNombre=null,_borraZoomLevel=1,_borraImg=null;
+let _borraRect=null,_borraStartX=0,_borraStartY=0,_borraDrawing=false;
+let _borraMoving=false,_borraMoveOffX=0,_borraMoveOffY=0;
+let _borraHistorial=[]; // stack de ImageData para deshacer
+let _borraPanX=0,_borraPanY=0,_borraPanStart=null;
+let _borraLastTouches=null;
+
+async function abrirBorrado(){
+  if(!_seleccionadas.size){setStatus('❌ Selecciona una imagen');return;}
+  _borraNombre=[..._seleccionadas][0];
+  const blob=_visorBlobs[_borraNombre];
+  _borraImg=await createImageBitmap(blob);
+  _borraPanX=0;_borraPanY=0;
+  _borraHistorial=[];_borraRect=null;
+  document.getElementById('borraNombreLabel').textContent=`✏️ Borrar zona — ${_borraNombre.replace(/\.[^.]+$/,'')}`;
+  const canvas=document.getElementById('borraCanvas');
+  canvas.width=_borraImg.width;canvas.height=_borraImg.height;
+  const ctx=canvas.getContext('2d');ctx.drawImage(_borraImg,0,0);
+  document.getElementById('borraOverlay').classList.add('show');
+  // Calcular zoom inicial para que la imagen quepa completa en pantalla
+  const wrap=document.getElementById('borraWrap');
+  const wr=wrap.clientWidth,wh=wrap.clientHeight;
+  _borraZoomLevel=Math.min(wr/_borraImg.width, wh/_borraImg.height, 1);
+  _borraAplicarTransform();
+  _borraIniciarEventos();
+}
+
+function _borraAplicarTransform(){
+  const canvas=document.getElementById('borraCanvas');
+  canvas.style.transform=`translate(${_borraPanX}px,${_borraPanY}px) scale(${_borraZoomLevel})`;
+}
+
+function _borraZoom(delta){
+  _borraZoomLevel=Math.max(0.5,Math.min(5,_borraZoomLevel+delta));
+  _borraAplicarTransform();
+}
+function _borraResetZoom(){
+  const wrap=document.getElementById('borraWrap');
+  _borraZoomLevel=Math.min(wrap.clientWidth/_borraImg.width,wrap.clientHeight/_borraImg.height,1);
+  _borraPanX=0;_borraPanY=0;
+  _borraAplicarTransform();
+}
+
+function _borraDeshacer(){
+  if(!_borraHistorial.length)return;
+  const canvas=document.getElementById('borraCanvas');
+  const ctx=canvas.getContext('2d');
+  ctx.putImageData(_borraHistorial.pop(),0,0);
+}
+
+function _borraCanvasPoint(clientX,clientY){
+  const canvas=document.getElementById('borraCanvas');
+  const rect=canvas.getBoundingClientRect();
+  return{
+    x:(clientX-rect.left)/(_borraZoomLevel)*(_borraImg.width/rect.width*_borraZoomLevel),
+    y:(clientY-rect.top)/(_borraZoomLevel)*(_borraImg.height/rect.height*_borraZoomLevel)
+  };
+}
+
+function _borraIniciarEventos(){
+  const wrap=document.getElementById('borraWrap');
+  const canvas=document.getElementById('borraCanvas');
+
+  // Mouse
+  canvas.onmousedown=e=>{
+    e.preventDefault();
+    const p=_borraCanvasPoint(e.clientX,e.clientY);
+    if(_borraEnRect(p)){
+      // Mover rectángulo existente
+      _borraMoving=true;
+      _borraMoveOffX=p.x-_borraRect.x;
+      _borraMoveOffY=p.y-_borraRect.y;
+    } else {
+      // Dibujar nuevo rectángulo
+      _borraMoving=false;
+      _borraStartX=p.x;_borraStartY=p.y;_borraDrawing=true;
+      _borraHistorial.push(canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height));
+    }
+  };
+  window.onmousemove=e=>{
+    const p=_borraCanvasPoint(e.clientX,e.clientY);
+    if(_borraMoving&&_borraRect){
+      _borraRect={x:p.x-_borraMoveOffX,y:p.y-_borraMoveOffY,w:_borraRect.w,h:_borraRect.h};
+      _borraRedibujar();
+    } else if(_borraDrawing){
+      _borraRect={x:Math.min(_borraStartX,p.x),y:Math.min(_borraStartY,p.y),
+        w:Math.abs(p.x-_borraStartX),h:Math.abs(p.y-_borraStartY)};
+      _borraRedibujar();
+    }
+    // Cambiar cursor según posición
+    canvas.style.cursor=_borraEnRect(p)?'move':'crosshair';
+  };
+  window.onmouseup=e=>{_borraDrawing=false;_borraMoving=false;};
+
+  // Touch — un dedo dibuja, dos dedos hacen pan+zoom
+  canvas.ontouchstart=e=>{
+    e.preventDefault();
+    if(e.touches.length===1){
+      const t=e.touches[0];
+      const p=_borraCanvasPoint(t.clientX,t.clientY);
+      if(_borraEnRect(p)){
+        _borraMoving=true;
+        _borraMoveOffX=p.x-_borraRect.x;
+        _borraMoveOffY=p.y-_borraRect.y;
+      } else {
+        _borraMoving=false;
+        _borraStartX=p.x;_borraStartY=p.y;_borraDrawing=true;
+        _borraHistorial.push(canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height));
+      }
+    } else if(e.touches.length===2){
+      _borraDrawing=false;
+      _borraLastTouches=[...e.touches];
+      _borraPanStart={x:_borraPanX,y:_borraPanY,zoom:_borraZoomLevel};
+    }
+  };
+  wrap.ontouchmove=e=>{
+    e.preventDefault();
+    if(e.touches.length===1){
+      const t=e.touches[0];
+      const p=_borraCanvasPoint(t.clientX,t.clientY);
+      if(_borraMoving&&_borraRect){
+        _borraRect={x:p.x-_borraMoveOffX,y:p.y-_borraMoveOffY,w:_borraRect.w,h:_borraRect.h};
+        _borraRedibujar();
+      } else if(_borraDrawing){
+        _borraRect={x:Math.min(_borraStartX,p.x),y:Math.min(_borraStartY,p.y),
+          w:Math.abs(p.x-_borraStartX),h:Math.abs(p.y-_borraStartY)};
+        _borraRedibujar();
+      }
+    } else if(e.touches.length===2&&_borraLastTouches){
+      // Zoom con pellizco
+      const d0=Math.hypot(_borraLastTouches[0].clientX-_borraLastTouches[1].clientX,
+                          _borraLastTouches[0].clientY-_borraLastTouches[1].clientY);
+      const d1=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
+                          e.touches[0].clientY-e.touches[1].clientY);
+      _borraZoomLevel=Math.max(0.5,Math.min(5,_borraPanStart.zoom*(d1/d0)));
+      // Pan con dos dedos
+      const dx=((e.touches[0].clientX+e.touches[1].clientX)/2)-
+               ((_borraLastTouches[0].clientX+_borraLastTouches[1].clientX)/2);
+      const dy=((e.touches[0].clientY+e.touches[1].clientY)/2)-
+               ((_borraLastTouches[0].clientY+_borraLastTouches[1].clientY)/2);
+      _borraPanX=_borraPanStart.x+dx;_borraPanY=_borraPanStart.y+dy;
+      _borraAplicarTransform();
+    }
+  },{passive:false};
+  wrap.ontouchend=e=>{
+    _borraDrawing=false;_borraMoving=false;_borraLastTouches=null;_borraPanStart=null;
+  };
+}
+
+function _borraEnRect(p){
+  if(!_borraRect)return false;
+  return p.x>=_borraRect.x&&p.x<=_borraRect.x+_borraRect.w&&
+         p.y>=_borraRect.y&&p.y<=_borraRect.y+_borraRect.h;
+}
+function _borraRedibujar(){
+  const canvas=document.getElementById('borraCanvas');
+  const ctx=canvas.getContext('2d');
+  // Restaurar último estado del historial sin quitarlo
+  if(_borraHistorial.length)ctx.putImageData(_borraHistorial[_borraHistorial.length-1],0,0);
+  if(!_borraRect||_borraRect.w<2||_borraRect.h<2)return;
+  // Dibujar rectángulo de previsualización
+  ctx.strokeStyle='#00e5ff';ctx.lineWidth=2/(_borraZoomLevel);
+  ctx.strokeRect(_borraRect.x,_borraRect.y,_borraRect.w,_borraRect.h);
+  ctx.fillStyle='rgba(255,255,255,0.35)';
+  ctx.fillRect(_borraRect.x,_borraRect.y,_borraRect.w,_borraRect.h);
+}
+
+async function confirmarBorrado(){
+  if(!_borraRect||_borraRect.w<2||_borraRect.h<2){setStatus('❌ Dibuja un rectángulo primero');return;}
+  const canvas=document.getElementById('borraCanvas');
+  const ctx=canvas.getContext('2d');
+  // Rellenar de blanco definitivamente
+  // Restaurar estado limpio y aplicar solo el relleno blanco sin borde
+  if(_borraHistorial.length)ctx.putImageData(_borraHistorial[_borraHistorial.length-1],0,0);
+  ctx.fillStyle='#ffffff';
+  ctx.fillRect(_borraRect.x,_borraRect.y,_borraRect.w,_borraRect.h);
+  _borraRect=null;
+  // Guardar estado para seguir dibujando más rectángulos
+  _borraHistorial.push(ctx.getImageData(0,0,canvas.width,canvas.height));
+  setStatus('✅ Zona borrada — puedes seguir dibujando o pulsa ✕ Cerrar');
+}
+
+function guardarBorrado(){
+  const canvas=document.getElementById('borraCanvas');
+  // Restaurar estado sin el borde cyan antes de guardar
+  if(_borraHistorial.length){
+    canvas.getContext('2d').putImageData(_borraHistorial[_borraHistorial.length-1],0,0);
+  }
+  _borraRect=null;
+  canvas.toBlob(async blob=>{
+    if(!blob)return;
+    _visorBlobs[_borraNombre]=blob;
+    _marcarDirty();
+    const wrap=[...document.querySelectorAll('#visorGrid .img-wrap')]
+      .find(w=>w.dataset.nombre===_borraNombre);
+    if(wrap){
+      const img=wrap.querySelector('img');
+      URL.revokeObjectURL(img.src);
+      img.src=URL.createObjectURL(blob);
+    }
+    setStatus('✅ Guardado en memoria — pulsa 💾 Guardar cambios para persistir');
+  },'image/jpeg',0.92);
+}
+function cerrarBorrado(){
+  window.onmousemove=null;window.onmouseup=null;
+  document.getElementById('borraOverlay').classList.remove('show');
+  _borraNombre=null;_borraImg=null;_borraHistorial=[];
 }
 
 function _marcarDirty(){
