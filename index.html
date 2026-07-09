@@ -176,16 +176,16 @@
       .vt-filtro-sel{padding:7px 10px;border-radius:7px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.12);color:#fff;font-size:0.78rem;font-weight:500;cursor:pointer;outline:none;}
       .vt-filtro-sel option{background:#1e1e2e;color:#fff;}
       .borra-overlay{display:none;position:fixed;inset:0;background:#000;z-index:800;flex-direction:column;}
-.collage-overlay{display:none;position:fixed;inset:0;background:#1a1a2e;z-index:800;flex-direction:column;}
-.collage-overlay.show{display:flex;}
-.collage-header{padding:8px 14px;background:rgba(0,0,0,0.7);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;}
-.collage-header span{color:#fff;font-size:0.8rem;font-weight:600;}
-.collage-canvas-wrap{flex:1;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#333;touch-action:none;}
-.collage-acciones{display:flex;gap:8px;padding:10px 12px;background:rgba(0,0,0,0.7);flex-shrink:0;justify-content:center;flex-wrap:wrap;}
-.collage-plantillas{display:flex;gap:8px;padding:6px 12px;background:rgba(0,0,0,0.5);flex-shrink:0;justify-content:center;}
-.collage-plt-btn{padding:6px 10px;border-radius:7px;border:2px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);color:#fff;font-size:0.75rem;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;}
-.collage-plt-btn.active{border-color:var(--accent);background:rgba(99,102,241,0.25);}
-.collage-plt-icon{font-size:1.2rem;line-height:1;}
+      .collage-overlay{display:none;position:fixed;inset:0;background:#1a1a2e;z-index:800;flex-direction:column;}
+      .collage-overlay.show{display:flex;}
+      .collage-header{padding:8px 14px;background:rgba(0,0,0,0.7);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;}
+      .collage-header span{color:#fff;font-size:0.8rem;font-weight:600;}
+      .collage-canvas-wrap{flex:1;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#333;touch-action:none;}
+      .collage-acciones{display:flex;gap:8px;padding:10px 12px;background:rgba(0,0,0,0.7);flex-shrink:0;justify-content:center;flex-wrap:wrap;}
+      .collage-plantillas{display:flex;gap:8px;padding:6px 12px;background:rgba(0,0,0,0.5);flex-shrink:0;justify-content:center;}
+      .collage-plt-btn{padding:6px 10px;border-radius:7px;border:2px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);color:#fff;font-size:0.75rem;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;}
+      .collage-plt-btn.active{border-color:var(--accent);background:rgba(99,102,241,0.25);}
+      .collage-plt-icon{font-size:1.2rem;line-height:1;}
       .borra-overlay.show{display:flex;}
       .borra-header{padding:8px 12px;background:rgba(0,0,0,0.85);flex-shrink:0;text-align:center;}
       .borra-header span{color:#fff;font-size:0.78rem;font-weight:500;}
@@ -595,80 +595,42 @@
         return new Blob([bytes],{type:mime});
       }
       async function procesarTarjeta(id){
-        const t=await dbObtener(id);if(!t?.zipOriginalBlob&&!t?.zipFiltradoBlob){setStatus('\u274C Sin ZIP original');return;}
-        setStatus('\u2699\uFE0F Procesando\u2026');setProgress(0);
-
-        // Fase 1 (0-30%): leer ZIP y decodificar imágenes en canvas del DOM
-        // Usar zipFiltradoBlob si existe (tiene recortes/rotaciones ya aplicados)
+        const t=await dbObtener(id);if(!t?.zipOriginalBlob&&!t?.zipFiltradoBlob){setStatus('❌ Sin ZIP original');return;}
+        setStatus('⚙️ Procesando…');setProgress(0);
+        const f=JSON.parse(JSON.stringify(filtros));
         const zipIn=await JSZip.loadAsync(t.zipFiltradoBlob||t.zipOriginalBlob);
         const nombres=Object.keys(zipIn.files)
         .filter(n=>!zipIn.files[n].dir&&/\.(jpe?g|png|webp|gif|bmp)$/i.test(n))
         .sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
-
-        const imagenes=[];
+        const zipOut=new JSZip();
+        const ext=fmtActivo==='png'?'png':fmtActivo==='webp'?'webp':'jpg';
+        const mime=fmtActivo==='png'?'image/png':fmtActivo==='webp'?'image/webp':'image/jpeg';
         for(let i=0;i<nombres.length;i++){
           const nombre=nombres[i];
           const blob=await zipIn.files[nombre].async('blob');
           const url=URL.createObjectURL(blob);
-          const imgData=await new Promise((res,rej)=>{
+          await new Promise((res,rej)=>{
             const img=new Image();
             img.onload=()=>{
-              const s=filtros.escala/100;
+              const s=f.escala/100;
               const w=Math.round(img.naturalWidth*s),h=Math.round(img.naturalHeight*s);
               canvasOff.width=w;canvasOff.height=h;
               canvasOff.getContext('2d').drawImage(img,0,0,w,h);
-              URL.revokeObjectURL(url);
-              res({nombre,w,h,pixels:new Uint8ClampedArray(canvasOff.getContext('2d').getImageData(0,0,w,h).data)});
+              URL.revokeObjectURL(url);res();
             };
             img.onerror=()=>{URL.revokeObjectURL(url);rej();};
             img.src=url;
-          }).catch(()=>null);
-          if(imgData)imagenes.push(imgData);
-          setProgress(Math.round((i+1)/nombres.length*30));
-          setStatus('\u2699\uFE0F Leyendo '+( i+1)+'/'+nombres.length+'\u2026');
+          }).catch(()=>{});
+          // Aplicar filtro directo en hilo principal
+          const canvasFiltrado=aplicarFiltroACanvas(canvasOff,f);
+          const imgBlob=await new Promise(res=>canvasFiltrado.toBlob(res,mime,f.calidad/100));
+          zipOut.file(nombre.replace(/\.[^.]+$/,'')+'.'+ext,imgBlob);
+          setProgress(Math.round((i+1)/nombres.length*80));
+          setStatus(`⚙️ ${i+1}/${nombres.length} — ${nombre}`);
         }
-
-        // Fase 2 (30-80%): Web Worker procesa los pixels sin bloquear la UI
-        const workerSrc=document.getElementById('worker-src').textContent;
-        const workerBlob=new Blob([workerSrc],{type:'application/javascript'});
-        const workerUrl=URL.createObjectURL(workerBlob);
-        const worker=new Worker(workerUrl);
-
-        await new Promise((resolve,reject)=>{
-          worker.onmessage=async function(e){
-            const msg=e.data;
-            if(msg.type==='progress'){
-              setProgress(30+Math.round((msg.idx+1)/msg.total*50));
-              setStatus('\u2699\uFE0F Filtrando '+(msg.idx+1)+'/'+msg.total+'\u2026');
-            }
-            if(msg.type==='done'){
-              worker.terminate();URL.revokeObjectURL(workerUrl);
-
-              // Fase 3 (80-100%): pixels → canvas → blob → ZIP
-              setStatus('\u2699\uFE0F Generando ZIP\u2026');
-              const zipOut=new JSZip();
-              const ext=fmtActivo==='png'?'png':fmtActivo==='webp'?'webp':'jpg';
-              const mime=fmtActivo==='png'?'image/png':fmtActivo==='webp'?'image/webp':'image/jpeg';
-              for(const r of msg.resultados){
-                if(!r.ok)continue;
-                canvasOff.width=r.w;canvasOff.height=r.h;
-                const ctx2=canvasOff.getContext('2d');
-                ctx2.putImageData(new ImageData(new Uint8ClampedArray(r.pixels),r.w,r.h),0,0);
-                const imgBlob=await new Promise(res=>canvasOff.toBlob(res,mime,filtros.calidad/100));
-                zipOut.file(r.nombre.replace(/\.[^.]+$/,'')+'.'+ext,imgBlob);
-              }
-              t.zipFiltradoBlob=await zipOut.generateAsync({type:'blob'},m=>setProgress(80+Math.round(m.percent*0.2)));
-              t.presetUsado=presetActivo;t.nombreArchivoFilt='filt_'+uuid()+'.zip';
-              await dbGuardar(t);setStatus('\u2705 Procesado "'+t.nombre+'"');setProgress(100);renderGrid();
-              resolve();
-            }
-          };
-          worker.onerror=function(err){
-            worker.terminate();URL.revokeObjectURL(workerUrl);
-            setStatus('\u274C Error: '+err.message);reject(err);
-          };
-          worker.postMessage({imagenes,filtros:JSON.parse(JSON.stringify(filtros))});
-        });
+        t.zipFiltradoBlob=await zipOut.generateAsync({type:'blob'},m=>setProgress(80+Math.round(m.percent*0.2)));
+        t.presetUsado=presetActivo;t.nombreArchivoFilt='filt_'+uuid()+'.zip';
+        await dbGuardar(t);setStatus(`✅ Procesado "${t.nombre}"`);setProgress(100);renderGrid();
       }
 
       /* ═══ 7. ACCIONES TARJETA ═══ */
@@ -1695,322 +1657,322 @@
       }
 
       /* ═══ COLLAGE EDITOR ═══ */
-let _collageNombres=[];
-let _collagePagIdx=0;
-let _collageEstado=[];
-let _collageDPI=3;
-let _collagePlantillaActiva='ventana'; // 'ventana' | 'apilado'
-const _CW=215.9,_CH=279.4;
+      let _collageNombres=[];
+      let _collagePagIdx=0;
+      let _collageEstado=[];
+      let _collageDPI=3;
+      let _collagePlantillaActiva='ventana'; // 'ventana' | 'apilado'
+      const _CW=215.9,_CH=279.4;
 
-function _collagePlantilla(tipo){
-  _collagePlantillaActiva=tipo;
-  // Actualizar botones
-  document.querySelectorAll('.collage-plt-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('plt-'+tipo).classList.add('active');
-  // Reconstruir página actual con nuevo layout
-  delete _collageEstado[_collagePagIdx];
-  _collageConstruirPagina(_collagePagIdx).then(()=>_collageRedibujar());
-}
+      function _collagePlantilla(tipo){
+        _collagePlantillaActiva=tipo;
+        // Actualizar botones
+        document.querySelectorAll('.collage-plt-btn').forEach(b=>b.classList.remove('active'));
+        document.getElementById('plt-'+tipo).classList.add('active');
+        // Reconstruir página actual con nuevo layout
+        delete _collageEstado[_collagePagIdx];
+        _collageConstruirPagina(_collagePagIdx).then(()=>_collageRedibujar());
+      }
 
-async function abrirCollage(){
-  if(_seleccionadas.size<2){setStatus('❌ Selecciona al menos 2 imágenes');return;}
-  _collageNombres=[..._seleccionadas];
-  _collagePagIdx=0;_collageEstado=[];
-  _collagePlantillaActiva='ventana';
-  document.querySelectorAll('.collage-plt-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('plt-ventana').classList.add('active');
-  document.getElementById('collageOverlay').classList.add('show');
-  await _collageConstruirPagina(0);
-  _collageRedibujar();
-}
+      async function abrirCollage(){
+        if(_seleccionadas.size<2){setStatus('❌ Selecciona al menos 2 imágenes');return;}
+        _collageNombres=[..._seleccionadas];
+        _collagePagIdx=0;_collageEstado=[];
+        _collagePlantillaActiva='ventana';
+        document.querySelectorAll('.collage-plt-btn').forEach(b=>b.classList.remove('active'));
+        document.getElementById('plt-ventana').classList.add('active');
+        document.getElementById('collageOverlay').classList.add('show');
+        await _collageConstruirPagina(0);
+        _collageRedibujar();
+      }
 
-function cerrarCollage(){
-  document.getElementById('collageOverlay').classList.remove('show');
-  _collageEstado=[];_collageNombres=[];
-}
+      function cerrarCollage(){
+        document.getElementById('collageOverlay').classList.remove('show');
+        _collageEstado=[];_collageNombres=[];
+      }
 
-// Construir estado inicial de una página (2 imágenes lado a lado)
-async function _collageConstruirPagina(pagIdx){
-  if(_collageEstado[pagIdx])return;
-  const mg=parseInt(document.getElementById('collageMargen').value)||10;
-  const sep=mg;
-  const i0=pagIdx*2,i1=i0+1;
-  const nombres=[[i0,_collageNombres[i0]],[i1,_collageNombres[i1]]].filter(([,n])=>n);
-  const items=[];
+      // Construir estado inicial de una página (2 imágenes lado a lado)
+      async function _collageConstruirPagina(pagIdx){
+        if(_collageEstado[pagIdx])return;
+        const mg=parseInt(document.getElementById('collageMargen').value)||10;
+        const sep=mg;
+        const i0=pagIdx*2,i1=i0+1;
+        const nombres=[[i0,_collageNombres[i0]],[i1,_collageNombres[i1]]].filter(([,n])=>n);
+        const items=[];
 
-  if(_collagePlantillaActiva==='ventana'){
-    // Lado a lado horizontal
-    const areaW=(_CW-mg*2-sep)/2;
-    const areaH=_CH-mg*2;
-    for(const [idx,nombre] of nombres){
-      const bmp=await createImageBitmap(_visorBlobs[nombre]);
-      const esc=Math.min(areaW/bmp.width,areaH/bmp.height);
-      const iw=bmp.width*esc,ih=bmp.height*esc;
-      const col=idx%2===0?0:1;
-      const x=mg+col*(areaW+sep)+(areaW-iw)/2;
-      const y=mg+(areaH-ih)/2;
-      items.push({x,y,w:iw,h:ih,bmp,nombre});
-    }
-  } else {
-    // Apilado vertical
-    const areaW=_CW-mg*2;
-    const areaH=(_CH-mg*2-sep)/2;
-    for(const [idx,nombre] of nombres){
-      const bmp=await createImageBitmap(_visorBlobs[nombre]);
-      const esc=Math.min(areaW/bmp.width,areaH/bmp.height);
-      const iw=bmp.width*esc,ih=bmp.height*esc;
-      const fila=idx%2===0?0:1;
-      const x=mg+(areaW-iw)/2;
-      const y=mg+fila*(areaH+sep)+(areaH-ih)/2;
-      items.push({x,y,w:iw,h:ih,bmp,nombre});
-    }
-  }
-  _collageEstado[pagIdx]=items;
-}
+        if(_collagePlantillaActiva==='ventana'){
+          // Lado a lado horizontal
+          const areaW=(_CW-mg*2-sep)/2;
+          const areaH=_CH-mg*2;
+          for(const [idx,nombre] of nombres){
+            const bmp=await createImageBitmap(_visorBlobs[nombre]);
+            const esc=Math.min(areaW/bmp.width,areaH/bmp.height);
+            const iw=bmp.width*esc,ih=bmp.height*esc;
+            const col=idx%2===0?0:1;
+            const x=mg+col*(areaW+sep)+(areaW-iw)/2;
+            const y=mg+(areaH-ih)/2;
+            items.push({x,y,w:iw,h:ih,bmp,nombre});
+          }
+        } else {
+          // Apilado vertical
+          const areaW=_CW-mg*2;
+          const areaH=(_CH-mg*2-sep)/2;
+          for(const [idx,nombre] of nombres){
+            const bmp=await createImageBitmap(_visorBlobs[nombre]);
+            const esc=Math.min(areaW/bmp.width,areaH/bmp.height);
+            const iw=bmp.width*esc,ih=bmp.height*esc;
+            const fila=idx%2===0?0:1;
+            const x=mg+(areaW-iw)/2;
+            const y=mg+fila*(areaH+sep)+(areaH-ih)/2;
+            items.push({x,y,w:iw,h:ih,bmp,nombre});
+          }
+        }
+        _collageEstado[pagIdx]=items;
+      }
 
-function _collageRedibujar(){
-  const canvas=document.getElementById('collageCanvas');
-  const wrap=document.getElementById('collageWrap');
-  const mg=parseInt(document.getElementById('collageMargen').value)||10;
-  const D=_collageDPI;
+      function _collageRedibujar(){
+        const canvas=document.getElementById('collageCanvas');
+        const wrap=document.getElementById('collageWrap');
+        const mg=parseInt(document.getElementById('collageMargen').value)||10;
+        const D=_collageDPI;
 
-  // Canvas en píxeles proporcional a carta
-  canvas.width=Math.round(_CW*D);
-  canvas.height=Math.round(_CH*D);
+        // Canvas en píxeles proporcional a carta
+        canvas.width=Math.round(_CW*D);
+        canvas.height=Math.round(_CH*D);
 
-  // Escalar visualmente para caber en el wrap
-  const sc=Math.min(wrap.clientWidth/canvas.width, wrap.clientHeight/canvas.height, 1);
-  canvas.style.width=Math.round(canvas.width*sc)+'px';
-  canvas.style.height=Math.round(canvas.height*sc)+'px';
+        // Escalar visualmente para caber en el wrap
+        const sc=Math.min(wrap.clientWidth/canvas.width, wrap.clientHeight/canvas.height, 1);
+        canvas.style.width=Math.round(canvas.width*sc)+'px';
+        canvas.style.height=Math.round(canvas.height*sc)+'px';
 
-  const ctx=canvas.getContext('2d');
-  // Fondo blanco
-  ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+        const ctx=canvas.getContext('2d');
+        // Fondo blanco
+        ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  const items=_collageEstado[_collagePagIdx]||[];
-  for(const it of items){
-    ctx.drawImage(it.bmp, it.x*D, it.y*D, it.w*D, it.h*D);
-  }
+        const items=_collageEstado[_collagePagIdx]||[];
+        for(const it of items){
+          ctx.drawImage(it.bmp, it.x*D, it.y*D, it.w*D, it.h*D);
+        }
 
-  // Etiqueta de página
-  const total=Math.ceil(_collageNombres.length/2);
-  document.getElementById('collagePagLabel').textContent=`${_collagePagIdx+1} / ${total}`;
-  document.getElementById('collageLabel').textContent=
-    `🖼️ Collage — pág ${_collagePagIdx+1}/${total}`;
+        // Etiqueta de página
+        const total=Math.ceil(_collageNombres.length/2);
+        document.getElementById('collagePagLabel').textContent=`${_collagePagIdx+1} / ${total}`;
+        document.getElementById('collageLabel').textContent=
+          `🖼️ Collage — pág ${_collagePagIdx+1}/${total}`;
 
-  // Iniciar interacción
-  _collageIniciarEventos();
-}
+        // Iniciar interacción
+        _collageIniciarEventos();
+      }
 
-// ── Navegación de páginas ──
-async function _collagePagAnterior(){
-  if(_collagePagIdx===0)return;
-  _collagePagIdx--;
-  await _collageConstruirPagina(_collagePagIdx);
-  _collageRedibujar();
-}
-async function _collagePagSiguiente(){
-  const total=Math.ceil(_collageNombres.length/2);
-  if(_collagePagIdx>=total-1)return;
-  _collagePagIdx++;
-  await _collageConstruirPagina(_collagePagIdx);
-  _collageRedibujar();
-}
-function _collageResetPag(){
-  delete _collageEstado[_collagePagIdx];
-  _collageConstruirPagina(_collagePagIdx).then(()=>_collageRedibujar());
-}
+      // ── Navegación de páginas ──
+      async function _collagePagAnterior(){
+        if(_collagePagIdx===0)return;
+        _collagePagIdx--;
+        await _collageConstruirPagina(_collagePagIdx);
+        _collageRedibujar();
+      }
+      async function _collagePagSiguiente(){
+        const total=Math.ceil(_collageNombres.length/2);
+        if(_collagePagIdx>=total-1)return;
+        _collagePagIdx++;
+        await _collageConstruirPagina(_collagePagIdx);
+        _collageRedibujar();
+      }
+      function _collageResetPag(){
+        delete _collageEstado[_collagePagIdx];
+        _collageConstruirPagina(_collagePagIdx).then(()=>_collageRedibujar());
+      }
 
-// ── Drag & resize interacción ──
-let _collageDragItem=null,_collageDragOffX=0,_collageDragOffY=0;
-let _collageResizeItem=null,_collageResizeStartX=0,_collageResizeStartY=0;
-let _collageResizeOrigW=0,_collageResizeOrigH=0;
+      // ── Drag & resize interacción ──
+      let _collageDragItem=null,_collageDragOffX=0,_collageDragOffY=0;
+      let _collageResizeItem=null,_collageResizeStartX=0,_collageResizeStartY=0;
+      let _collageResizeOrigW=0,_collageResizeOrigH=0;
 
-function _collagePtToMm(clientX,clientY){
-  const canvas=document.getElementById('collageCanvas');
-  const rect=canvas.getBoundingClientRect();
-  return{
-    x:(clientX-rect.left)/rect.width*_CW,
-    y:(clientY-rect.top)/rect.height*_CH
-  };
-}
-function _collageHitItem(p){
-  const items=_collageEstado[_collagePagIdx]||[];
-  for(let i=items.length-1;i>=0;i--){
-    const it=items[i];
-    if(p.x>=it.x&&p.x<=it.x+it.w&&p.y>=it.y&&p.y<=it.y+it.h)return it;
-  }
-  return null;
-}
-function _collageHitResize(p,it){
-  // Esquina inferior derecha — zona de 8mm
-  return Math.abs(p.x-(it.x+it.w))<8&&Math.abs(p.y-(it.y+it.h))<8;
-}
+      function _collagePtToMm(clientX,clientY){
+        const canvas=document.getElementById('collageCanvas');
+        const rect=canvas.getBoundingClientRect();
+        return{
+          x:(clientX-rect.left)/rect.width*_CW,
+          y:(clientY-rect.top)/rect.height*_CH
+        };
+      }
+      function _collageHitItem(p){
+        const items=_collageEstado[_collagePagIdx]||[];
+        for(let i=items.length-1;i>=0;i--){
+          const it=items[i];
+          if(p.x>=it.x&&p.x<=it.x+it.w&&p.y>=it.y&&p.y<=it.y+it.h)return it;
+        }
+        return null;
+      }
+      function _collageHitResize(p,it){
+        // Esquina inferior derecha — zona de 8mm
+        return Math.abs(p.x-(it.x+it.w))<8&&Math.abs(p.y-(it.y+it.h))<8;
+      }
 
-function _collageIniciarEventos(){
-  const canvas=document.getElementById('collageCanvas');
-  canvas.onmousedown=e=>{
-    const p=_collagePtToMm(e.clientX,e.clientY);
-    const it=_collageHitItem(p);
-    if(!it)return;
-    if(_collageHitResize(p,it)){
-      _collageResizeItem=it;
-      _collageResizeStartX=p.x;_collageResizeStartY=p.y;
-      _collageResizeOrigW=it.w;_collageResizeOrigH=it.h;
-    } else {
-      _collageDragItem=it;
-      _collageDragOffX=p.x-it.x;_collageDragOffY=p.y-it.y;
-    }
-  };
-  window.onmousemove=e=>{
-    if(_collageDragItem){
-      const p=_collagePtToMm(e.clientX,e.clientY);
-      _collageDragItem.x=p.x-_collageDragOffX;
-      _collageDragItem.y=p.y-_collageDragOffY;
-      _collageRedibujarRapido();
-    } else if(_collageResizeItem){
-      const p=_collagePtToMm(e.clientX,e.clientY);
-      const dx=p.x-_collageResizeStartX,dy=p.y-_collageResizeStartY;
-      const ratio=_collageResizeOrigW/_collageResizeOrigH;
-      const newW=Math.max(20,_collageResizeOrigW+dx);
-      _collageResizeItem.w=newW;
-      _collageResizeItem.h=newW/ratio; // mantener proporción
-      _collageRedibujarRapido();
-    }
-  };
-  window.onmouseup=()=>{_collageDragItem=null;_collageResizeItem=null;};
+      function _collageIniciarEventos(){
+        const canvas=document.getElementById('collageCanvas');
+        canvas.onmousedown=e=>{
+          const p=_collagePtToMm(e.clientX,e.clientY);
+          const it=_collageHitItem(p);
+          if(!it)return;
+          if(_collageHitResize(p,it)){
+            _collageResizeItem=it;
+            _collageResizeStartX=p.x;_collageResizeStartY=p.y;
+            _collageResizeOrigW=it.w;_collageResizeOrigH=it.h;
+          } else {
+            _collageDragItem=it;
+            _collageDragOffX=p.x-it.x;_collageDragOffY=p.y-it.y;
+          }
+        };
+        window.onmousemove=e=>{
+          if(_collageDragItem){
+            const p=_collagePtToMm(e.clientX,e.clientY);
+            _collageDragItem.x=p.x-_collageDragOffX;
+            _collageDragItem.y=p.y-_collageDragOffY;
+            _collageRedibujarRapido();
+          } else if(_collageResizeItem){
+            const p=_collagePtToMm(e.clientX,e.clientY);
+            const dx=p.x-_collageResizeStartX,dy=p.y-_collageResizeStartY;
+            const ratio=_collageResizeOrigW/_collageResizeOrigH;
+            const newW=Math.max(20,_collageResizeOrigW+dx);
+            _collageResizeItem.w=newW;
+            _collageResizeItem.h=newW/ratio; // mantener proporción
+            _collageRedibujarRapido();
+          }
+        };
+        window.onmouseup=()=>{_collageDragItem=null;_collageResizeItem=null;};
 
-  // Touch
-  canvas.ontouchstart=e=>{
-    e.preventDefault();
-    const t=e.touches[0];
-    const p=_collagePtToMm(t.clientX,t.clientY);
-    const it=_collageHitItem(p);
-    if(!it)return;
-    if(_collageHitResize(p,it)){
-      _collageResizeItem=it;
-      _collageResizeStartX=p.x;_collageResizeStartY=p.y;
-      _collageResizeOrigW=it.w;_collageResizeOrigH=it.h;
-    } else {
-      _collageDragItem=it;
-      _collageDragOffX=p.x-it.x;_collageDragOffY=p.y-it.y;
-    }
-  };
-  canvas.ontouchmove=e=>{
-    e.preventDefault();
-    const t=e.touches[0];
-    const p=_collagePtToMm(t.clientX,t.clientY);
-    if(_collageDragItem){
-      _collageDragItem.x=p.x-_collageDragOffX;
-      _collageDragItem.y=p.y-_collageDragOffY;
-      _collageRedibujarRapido();
-    } else if(_collageResizeItem){
-      const dx=p.x-_collageResizeStartX,dy=p.y-_collageResizeStartY;
-      const ratio=_collageResizeOrigW/_collageResizeOrigH;
-      const newW=Math.max(20,_collageResizeOrigW+dx);
-      _collageResizeItem.w=newW;_collageResizeItem.h=newW/ratio;
-      _collageRedibujarRapido();
-    }
-  },{passive:false};
-  canvas.ontouchend=()=>{_collageDragItem=null;_collageResizeItem=null;};
-}
+        // Touch
+        canvas.ontouchstart=e=>{
+          e.preventDefault();
+          const t=e.touches[0];
+          const p=_collagePtToMm(t.clientX,t.clientY);
+          const it=_collageHitItem(p);
+          if(!it)return;
+          if(_collageHitResize(p,it)){
+            _collageResizeItem=it;
+            _collageResizeStartX=p.x;_collageResizeStartY=p.y;
+            _collageResizeOrigW=it.w;_collageResizeOrigH=it.h;
+          } else {
+            _collageDragItem=it;
+            _collageDragOffX=p.x-it.x;_collageDragOffY=p.y-it.y;
+          }
+        };
+        canvas.ontouchmove=e=>{
+          e.preventDefault();
+          const t=e.touches[0];
+          const p=_collagePtToMm(t.clientX,t.clientY);
+          if(_collageDragItem){
+            _collageDragItem.x=p.x-_collageDragOffX;
+            _collageDragItem.y=p.y-_collageDragOffY;
+            _collageRedibujarRapido();
+          } else if(_collageResizeItem){
+            const dx=p.x-_collageResizeStartX,dy=p.y-_collageResizeStartY;
+            const ratio=_collageResizeOrigW/_collageResizeOrigH;
+            const newW=Math.max(20,_collageResizeOrigW+dx);
+            _collageResizeItem.w=newW;_collageResizeItem.h=newW/ratio;
+            _collageRedibujarRapido();
+          }
+        },{passive:false};
+        canvas.ontouchend=()=>{_collageDragItem=null;_collageResizeItem=null;};
+      }
 
-function _collageRedibujarRapido(){
-  const canvas=document.getElementById('collageCanvas');
-  const ctx=canvas.getContext('2d');
-  const D=_collageDPI;
-  ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
-  const items=_collageEstado[_collagePagIdx]||[];
-  for(const it of items){
-    ctx.drawImage(it.bmp,it.x*D,it.y*D,it.w*D,it.h*D);
-    // Indicador resize — esquina inferior derecha
-    ctx.fillStyle='rgba(0,140,255,0.7)';
-    ctx.fillRect((it.x+it.w)*D-8*D,(it.y+it.h)*D-8*D,8*D,8*D);
-  }
-}
+      function _collageRedibujarRapido(){
+        const canvas=document.getElementById('collageCanvas');
+        const ctx=canvas.getContext('2d');
+        const D=_collageDPI;
+        ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+        const items=_collageEstado[_collagePagIdx]||[];
+        for(const it of items){
+          ctx.drawImage(it.bmp,it.x*D,it.y*D,it.w*D,it.h*D);
+          // Indicador resize — esquina inferior derecha
+          ctx.fillStyle='rgba(0,140,255,0.7)';
+          ctx.fillRect((it.x+it.w)*D-8*D,(it.y+it.h)*D-8*D,8*D,8*D);
+        }
+      }
 
-// ── Exportar PDF con todas las páginas ──
-async function guardarCollage(){
-  const total=Math.ceil(_collageNombres.length/2);
-  setStatus('💾 Guardando collage…');setProgress(0);
+      // ── Exportar PDF con todas las páginas ──
+      async function guardarCollage(){
+        const total=Math.ceil(_collageNombres.length/2);
+        setStatus('💾 Guardando collage…');setProgress(0);
 
-  const D=_collageDPI;
-  const tmpCanvas=document.createElement('canvas');
-  tmpCanvas.width=Math.round(_CW*D);tmpCanvas.height=Math.round(_CH*D);
-  const ctx=tmpCanvas.getContext('2d');
+        const D=_collageDPI;
+        const tmpCanvas=document.createElement('canvas');
+        tmpCanvas.width=Math.round(_CW*D);tmpCanvas.height=Math.round(_CH*D);
+        const ctx=tmpCanvas.getContext('2d');
 
-  // Obtener ZIP base
-  const t=await dbObtener(_visorTarjetaId);
-  const zipIn=await JSZip.loadAsync(t.zipFiltradoBlob||t.zipOriginalBlob);
-  const zipOut=new JSZip();
+        // Obtener ZIP base
+        const t=await dbObtener(_visorTarjetaId);
+        const zipIn=await JSZip.loadAsync(t.zipFiltradoBlob||t.zipOriginalBlob);
+        const zipOut=new JSZip();
 
-  // Generar una imagen JPG por página de collage y agregarla al inicio
-  const collagBlobs=[];
-  for(let p=0;p<total;p++){
-    await _collageConstruirPagina(p);
-    ctx.fillStyle='#fff';ctx.fillRect(0,0,tmpCanvas.width,tmpCanvas.height);
-    for(const it of _collageEstado[p]||[]){
-      ctx.drawImage(it.bmp,it.x*D,it.y*D,it.w*D,it.h*D);
-    }
-    const blob=await new Promise(res=>tmpCanvas.toBlob(res,'image/jpeg',0.92));
-    collagBlobs.push({nombre:`0_collage_p${p+1}_${Date.now()}.jpg`,blob});
-    setProgress(Math.round((p+1)/total*60));
-  }
+        // Generar una imagen JPG por página de collage y agregarla al inicio
+        const collagBlobs=[];
+        for(let p=0;p<total;p++){
+          await _collageConstruirPagina(p);
+          ctx.fillStyle='#fff';ctx.fillRect(0,0,tmpCanvas.width,tmpCanvas.height);
+          for(const it of _collageEstado[p]||[]){
+            ctx.drawImage(it.bmp,it.x*D,it.y*D,it.w*D,it.h*D);
+          }
+          const blob=await new Promise(res=>tmpCanvas.toBlob(res,'image/jpeg',0.92));
+          collagBlobs.push({nombre:`0_collage_p${p+1}_${Date.now()}.jpg`,blob});
+          setProgress(Math.round((p+1)/total*60));
+        }
 
-  // Reconstruir ZIP: collages primero, luego las imágenes originales
-  for(const {nombre,blob} of collagBlobs){
-    zipOut.file(nombre,blob);
-  }
-  // Agregar resto de imágenes originales
-  const nombresOrig=Object.keys(zipIn.files)
-    .filter(n=>!zipIn.files[n].dir)
-    .sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
-  for(const n of nombresOrig){
-    zipOut.file(n,await zipIn.files[n].async('blob'));
-  }
+        // Reconstruir ZIP: collages primero, luego las imágenes originales
+        for(const {nombre,blob} of collagBlobs){
+          zipOut.file(nombre,blob);
+        }
+        // Agregar resto de imágenes originales
+        const nombresOrig=Object.keys(zipIn.files)
+        .filter(n=>!zipIn.files[n].dir)
+        .sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+        for(const n of nombresOrig){
+          zipOut.file(n,await zipIn.files[n].async('blob'));
+        }
 
-  const zipBlob=await zipOut.generateAsync({type:'blob'},m=>setProgress(60+Math.round(m.percent*0.4)));
+        const zipBlob=await zipOut.generateAsync({type:'blob'},m=>setProgress(60+Math.round(m.percent*0.4)));
 
-  // Guardar en BD y actualizar visorBlobs
-  if(t.zipFiltradoBlob)t.zipFiltradoBlob=zipBlob;
-  else t.zipOriginalBlob=zipBlob;
-  await dbGuardar(t);
+        // Guardar en BD y actualizar visorBlobs
+        if(t.zipFiltradoBlob)t.zipFiltradoBlob=zipBlob;
+        else t.zipOriginalBlob=zipBlob;
+        await dbGuardar(t);
 
-  // Actualizar visor en memoria
-  _visorZip=await JSZip.loadAsync(zipBlob);
-  for(const {nombre,blob} of collagBlobs){
-    _visorBlobs[nombre]=blob;
-    _visorNombres.unshift(nombre); // al inicio
-  }
+        // Actualizar visor en memoria
+        _visorZip=await JSZip.loadAsync(zipBlob);
+        for(const {nombre,blob} of collagBlobs){
+          _visorBlobs[nombre]=blob;
+          _visorNombres.unshift(nombre); // al inicio
+        }
 
-  setStatus(`✅ ${collagBlobs.length} collage(s) guardado(s) al inicio`);
-  setProgress(100);
-  renderGrid();
-  cerrarCollage();
+        setStatus(`✅ ${collagBlobs.length} collage(s) guardado(s) al inicio`);
+        setProgress(100);
+        renderGrid();
+        cerrarCollage();
 
-  // Refrescar el visor con las nuevas imágenes
-  await verTarjeta(_visorTarjetaId);
-}
+        // Refrescar el visor con las nuevas imágenes
+        await verTarjeta(_visorTarjetaId);
+      }
 
-async function eliminarSeleccion(){
-  if(!_seleccionadas.size){setStatus('❌ Selecciona imágenes primero');return;}
-  if(!confirm(`¿Eliminar ${_seleccionadas.size} imagen(es) seleccionada(s)?`))return;
-  // Quitar del array en memoria
-  for(const nombre of _seleccionadas){
-    delete _visorBlobs[nombre];
-    _visorNombres=_visorNombres.filter(n=>n!==nombre);
-    // Quitar del DOM
-    const wrap=[...document.querySelectorAll('#visorGrid .img-wrap')]
-      .find(w=>w.dataset.nombre===nombre);
-    if(wrap)wrap.remove();
-  }
-  _seleccionadas.clear();
-  actualizarNumeracion();
-  _marcarDirty();
-  setStatus('🗑 Imágenes eliminadas — pulsa 💾 Guardar cambios');
-}
+      async function eliminarSeleccion(){
+        if(!_seleccionadas.size){setStatus('❌ Selecciona imágenes primero');return;}
+        if(!confirm(`¿Eliminar ${_seleccionadas.size} imagen(es) seleccionada(s)?`))return;
+        // Quitar del array en memoria
+        for(const nombre of _seleccionadas){
+          delete _visorBlobs[nombre];
+          _visorNombres=_visorNombres.filter(n=>n!==nombre);
+          // Quitar del DOM
+          const wrap=[...document.querySelectorAll('#visorGrid .img-wrap')]
+          .find(w=>w.dataset.nombre===nombre);
+          if(wrap)wrap.remove();
+        }
+        _seleccionadas.clear();
+        actualizarNumeracion();
+        _marcarDirty();
+        setStatus('🗑 Imágenes eliminadas — pulsa 💾 Guardar cambios');
+      }
 
-function _marcarDirty(){
+      function _marcarDirty(){
         _visorDirty=true;
         document.getElementById('btnGuardarCambios').style.display='inline-flex';
       }
@@ -2101,107 +2063,42 @@ function _marcarDirty(){
     </script>
 
     <!-- Collage editor -->
-<div class="collage-overlay" id="collageOverlay">
-  <div class="collage-header">
-    <span id="collageLabel">🖼️ Editor de Collage</span>
-    <div style="display:flex;gap:6px;align-items:center;">
-      <label style="color:#aaa;font-size:0.75rem;">Margen mm</label>
-      <input type="number" id="collageMargen" value="10" min="0" max="30"
-        style="width:48px;padding:4px;border-radius:5px;border:1px solid #444;background:#111;color:#fff;font-size:0.8rem;"
-        onchange="_collageRedibujar()">
+    <div class="collage-overlay" id="collageOverlay">
+      <div class="collage-header">
+        <span id="collageLabel">🖼️ Editor de Collage</span>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <label style="color:#aaa;font-size:0.75rem;">Margen mm</label>
+          <input type="number" id="collageMargen" value="10" min="0" max="30"
+                 style="width:48px;padding:4px;border-radius:5px;border:1px solid #444;background:#111;color:#fff;font-size:0.8rem;"
+                 onchange="_collageRedibujar()">
+        </div>
+      </div>
+      <div class="collage-canvas-wrap" id="collageWrap">
+        <canvas id="collageCanvas"></canvas>
+      </div>
+      <div class="collage-plantillas">
+        <button class="collage-plt-btn active" id="plt-ventana" onclick="_collagePlantilla('ventana')">
+          <span class="collage-plt-icon">⬛⬛</span>
+          <span>Ventana</span>
+        </button>
+        <button class="collage-plt-btn" id="plt-apilado" onclick="_collagePlantilla('apilado')">
+          <span class="collage-plt-icon">🟫<br>🟫</span>
+          <span>Apilado</span>
+        </button>
+      </div>
+      <div class="collage-acciones">
+        <button class="vtbtn" onclick="_collagePagAnterior()">◀ Anterior</button>
+        <span id="collagePagLabel" style="color:#fff;font-size:0.8rem;align-self:center;min-width:60px;text-align:center;"></span>
+        <button class="vtbtn" onclick="_collagePagSiguiente()">Siguiente ▶</button>
+        <button class="vtbtn vtbtn-warn" onclick="_collageResetPag()">↺ Reiniciar</button>
+        <button class="vtbtn" style="background:#27ae60;border-color:#27ae60" onclick="guardarCollage()">💾 Guardar</button>
+        <button class="vtbtn" onclick="cerrarCollage()">✕ Cerrar</button>
+      </div>
     </div>
-  </div>
-  <div class="collage-canvas-wrap" id="collageWrap">
-    <canvas id="collageCanvas"></canvas>
-  </div>
-  <div class="collage-plantillas">
-    <button class="collage-plt-btn active" id="plt-ventana" onclick="_collagePlantilla('ventana')">
-      <span class="collage-plt-icon">⬛⬛</span>
-      <span>Ventana</span>
-    </button>
-    <button class="collage-plt-btn" id="plt-apilado" onclick="_collagePlantilla('apilado')">
-      <span class="collage-plt-icon">🟫<br>🟫</span>
-      <span>Apilado</span>
-    </button>
-  </div>
-  <div class="collage-acciones">
-    <button class="vtbtn" onclick="_collagePagAnterior()">◀ Anterior</button>
-    <span id="collagePagLabel" style="color:#fff;font-size:0.8rem;align-self:center;min-width:60px;text-align:center;"></span>
-    <button class="vtbtn" onclick="_collagePagSiguiente()">Siguiente ▶</button>
-    <button class="vtbtn vtbtn-warn" onclick="_collageResetPag()">↺ Reiniciar</button>
-    <button class="vtbtn" style="background:#27ae60;border-color:#27ae60" onclick="guardarCollage()">💾 Guardar</button>
-    <button class="vtbtn" onclick="cerrarCollage()">✕ Cerrar</button>
-  </div>
-</div>
 
-<script id="worker-src" type="text/worker-src">
-'use strict';
-function boxBlurGray(gray,w,h,r){
-  var tmp=new Float32Array(gray.length),out=new Float32Array(gray.length),diam=2*r+1;
-  for(var y=0;y<h;y++){var sum=0,row=y*w;for(var x=0;x<diam&&x<w;x++)sum+=gray[row+x];var cnt=Math.min(diam,w);tmp[row+r]=sum/cnt;for(var x=1;x<w;x++){if(x+r<w){sum+=gray[row+x+r];cnt++;}if(x-r-1>=0){sum-=gray[row+x-r-1];cnt--;}tmp[row+x]=sum/cnt;}}
-  for(var x=0;x<w;x++){var sum=0,cnt=0;for(var y=0;y<r&&y<h;y++){sum+=tmp[y*w+x];cnt++;}for(var y=0;y<h;y++){if(y+r<h){sum+=tmp[(y+r)*w+x];cnt++;}if(y-r-1>=0){sum-=tmp[(y-r-1)*w+x];cnt--;}out[y*w+x]=sum/cnt;}}
-  return out;
-}
-function applySharpPixels(data,w,h,amount){
-  var src=new Uint8ClampedArray(data),k=amount*0.3;
-  for(var y=1;y<h-1;y++)for(var x=1;x<w-1;x++){var i=(y*w+x)*4;for(var c=0;c<3;c++){var l=-src[i-w*4+c]-src[i-4+c]+5*src[i+c]-src[i+4+c]-src[i+w*4+c];data[i+c]=Math.max(0,Math.min(255,src[i+c]+l*k/4));}data[i+3]=src[i+3];}
-}
-function applyMagicProPixels(pixels,w,h,color){
-  var n=w*h,gray=new Float32Array(n);
-  for(var i=0;i<n;i++){var p=i*4;gray[i]=0.299*pixels[p]+0.587*pixels[p+1]+0.114*pixels[p+2];}
-  var r=Math.max(20,Math.min(80,Math.round(Math.min(w,h)*0.035)));
-  var bg=boxBlurGray(gray,w,h,r);
-  var norm=new Float32Array(n);
-  for(var i=0;i<n;i++)norm[i]=Math.min(255,(gray[i]/(bg[i]+1))*230);
-  var sorted=norm.slice().sort(function(a,b){return a-b;});
-  var p2=sorted[Math.floor(n*0.02)],p98=sorted[Math.floor(n*0.98)],range=p98-p2||1;
-  for(var i=0;i<n;i++)norm[i]=Math.max(0,Math.min(255,(norm[i]-p2)/range*255));
-  var out=new Uint8ClampedArray(pixels.length);
-  for(var i=0;i<n;i++){
-    var v=norm[i],p=i*4;
-    if(color){
-      var f=v>130?(Math.min(255,v*1.25-32))/Math.max(gray[i],1):v<70?(Math.max(0,v*0.65))/Math.max(gray[i],1):(Math.max(0,v*0.85-8))/Math.max(gray[i],1);
-      out[p]  =Math.max(0,Math.min(255,pixels[p]  *f))|0;
-      out[p+1]=Math.max(0,Math.min(255,pixels[p+1]*f))|0;
-      out[p+2]=Math.max(0,Math.min(255,pixels[p+2]*f))|0;
-    } else {
-      var g=v>130?Math.min(255,v*1.25-32)|0:v<70?Math.max(0,v*0.65)|0:Math.max(0,v*0.85-8)|0;
-      out[p]=out[p+1]=out[p+2]=g;
-    }
-    out[p+3]=255;
-  }
-  applySharpPixels(out,w,h,3.5);
-  return out;
-}
-function applyCssFiltersPixels(pixels,w,h,f){
-  var data=new Uint8ClampedArray(pixels);
-  var bright=f.brillo/100,cont=f.contraste/100,sepia=f.sepia/100,sat=f.saturacion/100;
-  for(var i=0;i<data.length;i+=4){
-    var r=data[i],g=data[i+1],b=data[i+2];
-    if(f.gris){var gr=0.299*r+0.587*g+0.114*b;r=g=b=gr;}
-    else if(sat!==1){var gr=0.299*r+0.587*g+0.114*b;r=gr+(r-gr)*sat;g=gr+(g-gr)*sat;b=gr+(b-gr)*sat;}
-    if(sepia>0){var sr=r*0.393+g*0.769+b*0.189,sg=r*0.349+g*0.686+b*0.168,sb=r*0.272+g*0.534+b*0.131;r=r+(sr-r)*sepia;g=g+(sg-g)*sepia;b=b+(sb-b)*sepia;}
-    r=((r*bright)-128)*cont+128;g=((g*bright)-128)*cont+128;b=((b*bright)-128)*cont+128;
-    if(f.invert){r=255-r;g=255-g;b=255-b;}
-    data[i]=Math.max(0,Math.min(255,r));data[i+1]=Math.max(0,Math.min(255,g));data[i+2]=Math.max(0,Math.min(255,b));
-  }
-  if(f.sharp>0)applySharpPixels(data,w,h,f.sharp);
-  if(f.thresh>0){for(var i=0;i<data.length;i+=4){var v=(0.299*data[i]+0.587*data[i+1]+0.114*data[i+2])>=f.thresh?255:0;data[i]=data[i+1]=data[i+2]=v;}}
-  return data;
-}
-self.onmessage=function(e){
-  var imagenes=e.data.imagenes,f=e.data.filtros,resultados=[];
-  for(var i=0;i<imagenes.length;i++){
-    var im=imagenes[i];
-    try{
-      var out=f._magic?applyMagicProPixels(im.pixels,im.w,im.h,f._magicColor||false):applyCssFiltersPixels(im.pixels,im.w,im.h,f);
-      resultados.push({nombre:im.nombre,w:im.w,h:im.h,pixels:out.buffer,ok:true});
-    }catch(err){resultados.push({nombre:im.nombre,ok:false,error:err.message});}
-    self.postMessage({type:'progress',idx:i,total:imagenes.length});
-  }
-  var transferables=resultados.filter(function(r){return r.ok;}).map(function(r){return r.pixels;});
-  self.postMessage({type:'done',resultados:resultados},transferables);
-};
-    </script>
+
+
+
+
   </body>
 </html>
